@@ -10,6 +10,6 @@
 #PBS -W group_list=phenotyprediction
 #PBS -V
 
-export EGGNOG_DATA_DIR=/work/phenotyprediction/data/databases
+export EGGNOG_DATA_DIR=/work/phenotyprediction/data/data/databases
 PATH=eggnog-mapper:/work/phenotyprediction/data/phemale/eggnog-mapper/eggnogmapper/bin:"$PATH"
 python3 main.py
