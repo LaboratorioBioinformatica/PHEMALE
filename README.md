@@ -1,12 +1,12 @@
-- genomes: folder que contém todos os arquivos com genomas e dos dados tratados de cada genoma. É gigante e gerenciada pelos scripts de tratamento e coleta de dados.
+- data/genomes: folder que contém todos os arquivos com genomas e dos dados tratados de cada genoma. É gigante e gerenciada pelos scripts de tratamento e coleta de dados.
 
-- tools: folder que contém ferramentas 3rd-party utilizadas pelo Phemale.
+- data/databases: folder que contém os databases usados pelo eggnog-mapper
 
 - phemale: folder que contém arquivos do Phemale
 
 - phemale/tests.ipynb: notebook para testes pontuais de código
 
-- phemale/main.py: script de uso do Phemale
+- phemale/main.py: script principal do Phemale
 
 - phemale/data_module: folder que contém bibliotecas de coleta e tratamento de dados
 
@@ -21,3 +21,5 @@
 - phemale/training_module: contém biblotecas de treino para cada modelo: sklearn, tensorflow e lgbm
 
 - phemale/results: onde se encontram os resultados dos treinos (logs, modelos treinados, gráficos)
+
+- phemale/metadata: onde se encontram os metadados e arquivos de treino
