@@ -75,11 +75,11 @@ class TransformData:
         self.OG_columns = []
         self.ortholog_groups_DB = ortholog_groups_DB
         
-        madin = pandas.read_csv('./results/'+phenotype+'/'+'madin_'+phenotype+'.csv')
+        madin = pandas.read_csv('./metadata/'+phenotype+'/'+'madin_'+phenotype+'.csv')
         
         for idx in madin.index:
             
-            folder = '../genomes/'+str(madin['taxid'][idx])+'/'
+            folder = '../data/genomes/'+str(madin['taxid'][idx])+'/'
             
             if os.path.isdir(folder):
                 
@@ -91,6 +91,6 @@ class TransformData:
                         genome = self.TransformEggNOGFile( annotation, self.ortholog_groups_DB )
                         dump( genome, folder + eggnog_file + phenotype + '.joblib' )
 
-        dump( self.OG_columns, './results/' + phenotype + '/'+'OGColumns.joblib')
-        
-        print('Processed data for machine learning')
+        dump( self.OG_columns, './metadata/' + phenotype + '/'+'OGColumns.joblib')
+                
+        print('Processed data')

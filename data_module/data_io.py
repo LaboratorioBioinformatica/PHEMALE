@@ -20,22 +20,23 @@ class DataIO:
     def __init__(self, phenotype, classification_or_regression):
         
         self.phenotype = phenotype
-        self.phenotype_directory = '../metadata/'+self.phenotype+'/'
+        self.phenotype_directory = './metadata/'+self.phenotype+'/'
+        os.mkdir('./results/')
+        self.results_directory = './results/'+self.phenotype+'/'
+        os.mkdir(self.results_directory)
         self.classification_or_regression = classification_or_regression
     
     def WriteLog(self, text):
         
         if hasattr(self, 'trainingID') == False:
-            
-            self.trainingID = 'results_#'+str( today() )
-            os.mkdir('../metadata/'+self.phenotype+'/'+trainingID)
-        
-        with open('../metadata/'+self.phenotype+'/'+self.trainingID+'/log.txt', 'a+') as file:
+            self.results_ID_directory = self.results_directory+'#'+str( today() )+'/'
+            os.mkdir(self.results_ID_directory)
 
+        with open(self.results_ID_directory+'log.txt', 'a+') as file:
             file.write(str(text)+'\n')
 
     def SaveModel(self, model, file_name):
-        dump('../metadata/'+self.phenotype+'/'+self.trainingID+'/'+file_name+'.joblib', model)
+        dump(self.results_ID_directory+file_name+'.joblib', model)
 
     @jit
     def GetTrainingData(self, file, splitTrainTest = False, labelize = False):

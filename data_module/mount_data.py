@@ -61,7 +61,7 @@ class MountDataset:
         
         for idx, row in madin.iterrows():
             
-            folder = '../genomes/'+str(row['taxid'])+'/'
+            folder = '../data/genomes/'+str(row['taxid'])+'/'
             
             if os.path.isdir(folder):
                 
@@ -81,9 +81,10 @@ class MountDataset:
     def __init__(self, phenotype, redundancy_threshold):
         
         self.phenotype = phenotype
-        phenotype_folder = '../metadata/'+self.phenotype+'/'
+        phenotype_folder = './metadata/'+self.phenotype+'/'
+        
         madin = pandas.read_csv( phenotype_folder+'madin_'+self.phenotype+'.csv')
-        number_of_OG_columns = len( load('../metadata/'+self.phenotype+'/'+'OGColumns.joblib') )
+        number_of_OG_columns = len( load(phenotype_folder+'OGColumns.joblib') )
         redundancy_threshold = redundancy_threshold
 
         data, metadata = self.MountDataset( madin, number_of_OG_columns, redundancy_threshold )
@@ -91,4 +92,4 @@ class MountDataset:
         dump( metadata, phenotype_folder + 'metadata.joblib' )
         dump( data, phenotype_folder + 'data.joblib' )
 
-        print('Dataset & metadata constructed')
+        print('Dataset & metadata constructed in directory: '+phenotype_folder)

@@ -136,22 +136,9 @@ class CollectData:
                 n_jobs - number of CPU cores to parallel eggnog-mapper
     """
     def RunEggNOG(self, file, n_jobs):
-        
-        # Se der o erro 
-        # "DIAMOND database eggnog_proteins.dmnd not present. Use download_eggnog_database.py to fetch it"
-        # rode 'export EGGNOG_DATA_DIR=/work/phenotyprediction/data/tools/eggnog-mapper/databases'
-
-        #os.system('export EGGNOG_DATA_DIR='+os.path.dirname(os.getcwd())+'/tools/eggnog-mapper/databases')
-        
-        # Se der erro de não encontrar o emapper rode:
-        # rode PATH=eggnog-mapper:/work/phenotyprediction/data/tools/eggnog-mapper/eggnogmapper/bin:"$PATH"
-        
-        #os.system('PATH=eggnog-mapper:'+os.path.dirname(os.getcwd())+'/tools/eggnog-mapper/eggnogmapper/bin:"$PATH"')
-        
-        os.system('../tools/eggnog-mapper/emapper.py -i ' + file + '_genomic.fna --itype genome --genepred prodigal -o '+ file + 
+        os.system('./eggnog-mapper/emapper.py -i ' + file + '_genomic.fna --itype genome --genepred prodigal -o '+ file + 
                   ' --cpu ' + str(n_jobs) + ' --tax_scope 2 --tax_scope_mode inner_broadest --override')
-    
-    
+
     """
     Function: 
     Parameters: madin - 
@@ -170,7 +157,7 @@ class CollectData:
             for idx_madin_ncbi, row_madin_ncbi in madin_ncbi.iterrows():
                 
                 accession = row_madin_ncbi.ftp_path.split('/',9)[-1]
-                folder = '../genomes/'+str(row_madin_ncbi.taxid)+'/'
+                folder = '../data/genomes/'+str(row_madin_ncbi.taxid)+'/'
 
                 if os.path.isdir( folder ) == False:
                     os.mkdir( folder )
@@ -189,7 +176,7 @@ class CollectData:
     
     def __init__(self, phenotype, n_jobs, specific_pathway = False):
         
-        self.data_folder = './results/'
+        self.data_folder = './metadata/'
         
         # creates results folder
         if os.path.isdir( self.data_folder ) == False:

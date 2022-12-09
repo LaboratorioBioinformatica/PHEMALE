@@ -1,1 +1,5 @@
 __pycache__
+cpu.job
+gpu.job
+phemale.out
+tests.ipynb
