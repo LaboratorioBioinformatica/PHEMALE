@@ -1,10 +1,13 @@
-from data_io import DataIO_Classification, DataIO_Regression
-
+from .data_classes import DataIO
+from numba import jit
 from copy import deepcopy
+import numpy
 from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.experimental import enable_halving_search_cv
 from sklearn.model_selection import HalvingGridSearchCV
+import warnings
+warnings.filterwarnings('ignore')
 
 #Sklearn models used for classification
 from sklearn.naive_bayes import BernoulliNB
@@ -27,9 +30,6 @@ from sklearn.cross_decomposition import PLSRegression
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.ensemble import AdaBoostRegressor
 
-import warnings
-warnings.filterwarnings('ignore')
-
 """
 Class: training of sklearn models.
 Observations: Can train classification, regression and multilabel models.
@@ -37,7 +37,7 @@ Parameters: phenotype - Phenotype to be trained and predicted
             classification_or_regression - inform if it's classification/multilabel or regression problem
             multioutput - boolean for multioutput data
 """
-class Sklearn_Training:
+class Sklearn:
 
     """
     Function: Finds optimal hyper-parameters of a sklearn model.
@@ -47,7 +47,6 @@ class Sklearn_Training:
                 params - space of parameters to explore in optimization
                 multioutput_ensemble - boolean for models that need ensemble to be multioutput
     """
-    @jit
     def GridSearch( self, model, params, multioutput_ensemble = False ):
 
         x_train = deepcopy(self.x_train)
@@ -59,8 +58,12 @@ class Sklearn_Training:
         if len( y_train[0] ) == 1 or multioutput_ensemble == True:
             y_train = numpy.ravel(y_train)
         
-            HGS = HalvingGridSearchCV( estimator = model, param_grid=params, cv=3, factor=3, 
-                                       n_jobs=-1, min_resources='exhaust')
+            HGS = HalvingGridSearchCV( estimator = model, 
+                                       param_grid=params, 
+                                       cv=3, 
+                                       factor=3, 
+                                       n_jobs=-1, 
+                                       min_resources='exhaust')
             
             HGS.fit( x_train, y_train )
 
@@ -89,10 +92,10 @@ class Sklearn_Training:
             
             params = self.dataIO.ParseParameters( HGS.best_params_ )
             
-            if self.classification_or_regression == 'classification'
+            if self.classification_or_regression == 'classification':
                 model = MultiOutputClassifier( model, n_jobs = -1 ).set_params(**params)
             
-            elif self.classification_or_regression == 'regression'
+            elif self.classification_or_regression == 'regression':
                 model = MultiOutputRegressor( model, n_jobs = -1 ).set_params(**params)
             
             model.fit( x_train, y_train )
@@ -109,17 +112,11 @@ class Sklearn_Training:
                   it means it supports a 2-d array for targets (y). Meaning it is inherently multioutput.
     Parameters:
     """
+    @jit
     def Sklearn_Exploratory( self ):
 
         if self.classification_or_regression == 'classification':
             
-            self.GridSearch(BernoulliNB(), 
-                              {'alpha':[1.0e-10,0.1,0.5,1.0,5.0],
-                               'binarize':[0.0,0.2,2.0,4.0], 
-                               'fit_prior':[True], 
-                               'class_prior':[None]},
-                              multioutput_ensemble == self.multioutput )
-
             self.GridSearch(KNN(), 
                              {'n_neighbors':[2,4,7,10],
                               'weights':['uniform','distance'], 
@@ -127,6 +124,17 @@ class Sklearn_Training:
                               'leaf_size':[50,100,1000,10000],
                               'p':[1,2]})
 
+            self.GridSearch(LogisticRegressionCV(),
+                              {'Cs':[1,5,10,20], 
+                               'dual':[False], 
+                               'penalty':['l2'], 
+                               'solver':['newton-cg'], 
+                               'tol':[0.001, 0.01, 0.1], 
+                               'max_iter':[100,200,500], 
+                               'class_weight':['balanced'], 
+                               'multi_class':['ovr'], 
+                               'l1_ratios':[0.2,0.5,0.7]})
+            
             self.GridSearch(LogisticRegression(), 
                               {'penalty':['l2','none'],
                                'tol':[0.001, 0.01, 0.05],
@@ -135,7 +143,7 @@ class Sklearn_Training:
                                'solver':['newton-cg','lbfgs','sag'],
                                'max_iter':[20,50,100,500,1000,3000],
                                'multi_class':['ovr','multinomial']},
-                              multioutput_ensemble == self.multioutput )
+                              multioutput_ensemble = self.multioutput )
 
             self.GridSearch(LogisticRegression(), 
                               {'penalty':['l2','l1'],
@@ -144,7 +152,7 @@ class Sklearn_Training:
                                'class_weight':[None,'balanced'],
                                'solver':['liblinear'],
                                'max_iter':[20,50,100,500,1000,3000]}, 
-                              multioutput_ensemble == self.multioutput )
+                              multioutput_ensemble = self.multioutput )
 
             self.GridSearch(LogisticRegression(), 
                               {'penalty':['l1','l2','none','elasticnet'],
@@ -155,7 +163,29 @@ class Sklearn_Training:
                                'max_iter':[20,50,100,500,1000,3000],
                                'multi_class':['ovr','multinomial'],
                                'l1_ratio':[0.2,0.5,0.7]}, 
-                              multioutput_ensemble == self.multioutput )
+                              multioutput_ensemble = self.multioutput )
+            
+            self.GridSearch(LogisticRegressionCV(),
+                              {'Cs':[1,5,10,20], 
+                               'dual':[False], 
+                               'penalty':['l2','l1'], 
+                               'solver':['liblinear','sag','saga'], 
+                               'tol':[0.001, 0.01, 0.1], 
+                               'max_iter':[100,200,500], 
+                               'class_weight':['balanced'], 
+                               'multi_class':['ovr'], 
+                               'l1_ratios':[0.2,0.5,0.7]})
+            
+            self.GridSearch(LogisticRegressionCV(),
+                              {'Cs':[1,5,10,20], 
+                               'dual':[False], 
+                               'penalty':['elasticnet'], 
+                               'solver':['saga'], 
+                               'tol':[0.001, 0.01, 0.1], 
+                               'max_iter':[100,200,500], 
+                               'class_weight':['balanced'], 
+                               'multi_class':['ovr'], 
+                               'l1_ratios':[0.2,0.5,0.7]})
 
             self.GridSearch(RandomForestClassifier(), 
                               {'n_estimators':[100,300,500,700,1000,5000,10000],
@@ -168,45 +198,21 @@ class Sklearn_Training:
                                'ccp_alpha':[0.0,0.005,0.01,0.03,0.05,0.1,0.2]})
 
             self.GridSearch(SVC(), 
-                              {'C':[0.5,1.0,3.0,5.0],
+                              {'C':[0.2,0.5,1.0,3.0,5.0,10.0],
                                'kernel':['linear','poly','rbf','sigmoid'],
-                               'degree':[1,2,3,4,5,6],
+                               'degree':[1,2,3,4,5,6,7,8,9],
                                'coef0':[0.0, 0.01, 0.1, 1.0],
                                'tol':[0.001, 0.05],
                                'cache_size':[200000],
                                'class_weight':[None,'balanced'],
                                'shrinking':[True,False],
                                'decision_function_shape':['ovo', 'ovr']}, 
-                              multioutput_ensemble == self.multioutput )
+                              multioutput_ensemble = self.multioutput )
 
             self.GridSearch(GaussianProcessClassifier(),
                               {'max_iter_predict':[100,200,500],
                                'warm_start':[True, False],
                                'multi_class':['one_vs_rest','one_vs_one']} )
-
-            self.GridSearch(NuSVC(), 
-                              {'nu':[0.2,0.5,0.8],
-                               'kernel':['linear','poly','rbf','sigmoid'],
-                               'degree':[1,2,3,4,5,6],
-                               'coef0':[0.0, 0.01, 0.1, 1.0],
-                               'tol':[0.001, 0.01, 0.1],
-                               'cache_size':[200000]} )
-
-            self.GridSearch(RidgeClassifierCV(),
-                              {'normalize':[True, False],
-                               'class_weight':['balanced'],
-                               'alphas':[(1.,2.,3.,4.,5.,10.)]})
-
-            self.GridSearch(LogisticRegressionCV(),
-                              {'Cs':[1,5,10,20], 
-                               'dual':[False], 
-                               'penalty':['l2','l1','elasticnet'], 
-                               'solver':['newton-cg','lbfgs','liblinear','sag','saga'], 
-                               'tol':[0.001, 0.01, 0.1], 
-                               'max_iter':[100,200,500], 
-                               'class_weight':['balanced'], 
-                               'multi_class':['ovr'], 
-                               'l1_ratios':[0.2,0.5,0.7]})
 
             self.GridSearch(RidgeClassifier(),
                               {'class_weight':['balanced'],
@@ -215,6 +221,13 @@ class Sklearn_Training:
                                'tol':[0.001, 0.01, 0.1],
                                'class_weight':['balanced'],
                                'max_iter':[100,200,500]})
+            
+            self.GridSearch(BernoulliNB(), 
+                              {'alpha':[1.0e-10,0.1,0.5,1.0,5.0],
+                               'binarize':[0.0,0.2,2.0,4.0], 
+                               'fit_prior':[True], 
+                               'class_prior':[None]},
+                              multioutput_ensemble = self.multioutput )
     
         elif self.classification_or_regression == 'regression':
         
@@ -255,9 +268,6 @@ class Sklearn_Training:
                                'tol':[0.01,0.1,1.0],
                                'positive':[False,True]})
 
-            self.GridSearch(OrthogonalMatchingPursuit(), 
-                              {'tol':[0.01,0.1,1.0]})
-
             self.GridSearch(TweedieRegressor(), 
                               {'power':[0,1,2,3],
                                'alpha':[1.0e-4,0.1,0.5,1.0,2.0,5.0],
@@ -285,7 +295,8 @@ class Sklearn_Training:
                                'tol':[0.03,0.1,0.5]})
 
             self.GridSearch(KernelRidge(), 
-                              {'kernel':['additive_chi2','chi2','linear','poly','polynomial','rbf','laplacian','sigmoid','cosine'],
+                              {'kernel':['additive_chi2','chi2','linear','poly','polynomial','rbf',
+                                         'laplacian','sigmoid','cosine'],
                                'alpha':[1.0e-4,0.2,1.0,5.0],
                                'degree':[2,3,4,5,6,7],
                                'gamma':[0,1.0e-4,0.3,1.0,5.0],
@@ -304,7 +315,7 @@ class Sklearn_Training:
 
             self.GridSearch(AdaBoostRegressor(), 
                               {'n_estimators':[20,50,100,500],
-                               'learning_rate':[0False.01,0.1,0.5],
+                               'learning_rate':[0.01,0.1,0.5],
                                'loss':['linear','square','exponential']})
 
             self.GridSearch(SGDRegressor(), 
@@ -330,7 +341,7 @@ class Sklearn_Training:
                                'jitter':[None,0.1,0.5,1.0],
                                'positive':[False,True]})
 
-            self.GridSearch(ARDRegression(), False
+            self.GridSearch(ARDRegression(),
                               {'tol':[0.01,0.1,0.5],
                                'n_iter':[200,500,2000], 
                                'alpha_1':[1.0,0.1,1e-06],
@@ -360,6 +371,9 @@ class Sklearn_Training:
                                'compute_score':[True,False],
                                'fit_intercept':[True],
                                'normalize':[True,False]})
+            
+            self.GridSearch(OrthogonalMatchingPursuit(), 
+                              {'tol':[0.01,0.1,1.0]})
 
     def __init__(self, phenotype, classification_or_regression, multioutput = False):
         
@@ -367,8 +381,169 @@ class Sklearn_Training:
         self.classification_or_regression = classification_or_regression
         self.multioutput = multioutput
         
-        self.dataIO = DataIO( self.phenotype, self.classification_or_regression )
-        
-        self.x_train, self.y_train, self.x_test, self.y_test, self.labelize = dataIO.GetTrainingData('data.joblib', splitTrainTest = True, labelize = False)
+        self.dataIO = DataIO( phenotype, classification_or_regression )
+        self.x_train, self.y_train, self.x_test, self.y_test, self.labelize = self.dataIO.GetTrainingData('data.joblib', splitTrainTest = 0.3, labelize = False)
         
         self.Sklearn_Exploratory()
+        
+#################################################################################################################################
+
+from flaml import AutoML #https://microsoft.github.io/FLAML/docs/Use-Cases/Task-Oriented-AutoML
+from lightgbm import LGBMClassifier, LGBMRegressor
+
+class LGBM:
+
+    def __init__(self, phenotype, classification_or_regression):
+
+        self.phenotype = phenotype
+        self.classification_or_regression = classification_or_regression
+
+        self.dataIO = DataIO( self.phenotype, self.classification_or_regression )
+        
+        x_train, y_train, x_test, y_test, labelize = self.dataIO.GetTrainingData('data.joblib', splitTrainTest = 0.3)
+        
+        best_config = self.GridSearch(x_train, y_train, x_test, y_test)
+        
+        x_train, y_train, labelize = self.dataIO.GetTrainingData('data.joblib')
+        final_model = self.FinalModel(best_config, x_train, y_train)
+        
+        self.dataIO.SaveModel(final_model, 'lgbm')
+
+    def GridSearch(self, x_train, y_train, x_test, y_test):
+        
+        lgbm = AutoML()
+
+        if self.classification_or_regression == 'classification':
+            metric = 'macro_f1'
+        elif self.classification_or_regression == 'regression':
+            metric = 'mse'
+        
+        settings = {'time_budget':4*60*60,
+                    'task':self.classification_or_regression,
+                    'estimator_list':['lgbm'],
+                    'metric':metric,
+                    'early_stop':'True'}
+
+        y_train_ = numpy.hsplit(y_train, len(y_train[0]))[0]
+        y_train_ = numpy.ravel(y_train_)
+        
+        lgbm.fit( x_train, y_train_, **settings)
+
+        self.dataIO.WriteLog(lgbm.model.estimator)
+
+        y_pred = lgbm.predict(x_test)
+
+        self.dataIO.Metrics(y_test, y_pred)
+
+        return lgbm.best_config
+
+    def FinalModel(self, config, x, y):
+
+        if self.classification_or_regression == 'classification':
+            lgbm = LGBMClassifier(**config)
+
+        elif self.classification_or_regression == 'regression':
+            lgbm = LGBMRegressor(**config)
+
+        lgbm.fit(x, y)
+        return lgbm
+    
+#################################################################################################################################
+
+import os
+import tensorflow as tf
+from tensorflow.data import Dataset
+from tensorflow import keras
+import keras_tuner as kt        
+from tensorflow import distribute
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.models import load_model
+
+"""
+class ANN():
+    os.environ['TF_GPU_ALLOCATOR']='cuda_malloc_async'
+
+    physical_devices = tf.config.list_physical_devices('GPU')
+    try:
+        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+        tf.config.experimental.set_memory_growth(physical_devices[1], True)
+    except:
+        print('Invalid device or cannot modify virtual devices once initialized.')
+
+    x_train, y_train, x_val, y_val, LB = GetTrainingData(phenotypeFolder+'data.joblib',labelize = True, splitTrainTest = 0.3)
+    batchSize = 20
+    train_dataset = Dataset.from_tensor_slices((x_train,y_train)).batch(batchSize,drop_remainder=True)
+    val_dataset = Dataset.from_tensor_slices((x_val,y_val)).batch(batchSize,drop_remainder=True)
+
+    def build_model( hp = kt.HyperParameters ):
+        model = keras.Sequential()
+        model.add( keras.layers.Dropout( rate = hp.Choice(name='dropout', values=[0.0,0.15,0.3,0.4])))
+        model.add( keras.layers.Dense(units = hp.Choice('1_neurons', values=[200,500,800,1000,2000,5000,10000]),
+                                      activation = hp.Choice('1_activation', values=['relu','sigmoid','softmax','softplus',
+                                                                                     'softsign','tanh','selu','elu']),
+                                      kernel_constraint = keras.constraints.NonNeg(), bias_constraint = keras.constraints.NonNeg(), 
+                                      kernel_regularizer = keras.regularizers.l2()))
+        model.add( keras.layers.Dense(units=len(LB.classes_),
+                                      activation= hp.Choice('output_activation',values = ['softmax','relu','sigmoid'])))
+        model.compile(optimizer = keras.optimizers.Adam(learning_rate = hp.Float("learning_rate", min_value=1e-4,
+                                                                                 max_value=1e-1, sampling="log")),
+                      loss = hp.Choice('loss',values=['categorical_crossentropy','binary_crossentropy','kullback_leibler_divergence']),
+                      metrics=['accuracy'])
+        return model
+
+    def ClassWeights( data ):
+        from sklearn.utils import class_weight
+        data = numpy.argmax(data, axis=1)
+        data = class_weight.compute_class_weight(class_weight = 'balanced', classes = numpy.unique(data), y = data)
+        data = {i : data[i] for i in range(len(data))}
+        return data
+
+    tuner = kt.BayesianOptimization(hypermodel = build_model,
+                                    max_trials = 50,
+                                    objective = 'val_accuracy',
+                                    directory = phenotypeFolder+'TuningTests',
+                                    distribution_strategy = distribute.MultiWorkerMirroredStrategy())
+
+    early_stop = EarlyStopping(monitor='loss', patience=5, restore_best_weights=True, min_delta=5.0e-2)
+
+    tuner.search(train_dataset, validation_data=val_dataset,
+                 callbacks = [early_stop], class_weight = ClassWeights(y_train),
+                 use_multiprocessing=True, epochs=200, verbose=2)
+
+    best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
+    Log('Artificial Neural Network')
+    Log("Dropout: {:.4f}".format(best_hps.get("dropout")))
+    Log("\nNeurons 1st layer: {}".format(best_hps.get("1_neurons")))
+    Log("\nActivation 1st layer: {}".format(best_hps.get("1_activation")))
+    Log("\nActivation Output layer: {}".format(best_hps.get("output_activation")))
+    Log("\nLearning rate: {:.4f}".format(best_hps.get("learning_rate")))
+    Log("\nLoss: {}".format(best_hps.get("loss")))
+
+    # Build the model with the optimal hyperparameters and train it to check best epochs
+    model = tuner.hypermodel.build(best_hps)
+    history = model.fit(train_dataset, validation_data=val_dataset, epochs=200, callbacks=[early_stop], class_weight=ClassWeights(y_train), verbose=2, use_multiprocessing=True)
+
+    val_acc_per_epoch = history.history['val_accuracy']
+    best_epoch = val_acc_per_epoch.index(max(val_acc_per_epoch)) + 10
+    Log("\nBest epoch: {}".format(best_epoch))
+
+    # Build the model with the optimal hyperparameters and train with best epochs
+    model = tuner.hypermodel.build(best_hps)
+    history = model.fit(train_dataset, epochs=best_epoch,
+                        callbacks = [early_stop], verbose=2,
+                        class_weight = ClassWeights(y_train),
+                        use_multiprocessing=True)
+
+    model.save(phenotypeFolder+proccessID+'ANN')
+
+    #https://stackoverflow.com/questions/14645684/filtering-a-list-of-lists-in-a-smart-way
+
+    y_pred_tmp = model.predict(x_val)
+    y_pred = numpy.zeros_like(y_pred_tmp)
+    for i in range(len(y_pred_tmp)):
+        y_pred[i][numpy.argmax(y_pred_tmp[i])] = 1
+
+    y_pred = LB.inverse_transform( y_pred )
+    y_val = LB.inverse_transform(y_val)
+    Metrics(y_val,y_pred)
+"""

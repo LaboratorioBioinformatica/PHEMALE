@@ -16,8 +16,6 @@ def PlotModel( yTrue, yPred):
     plt.savefig(str(HGS.best_estimator_).split('(')[0]+'.png', dpi=300)
     """
 
-REGRESSION
-
 def ChosenModels():
     Log('Weighted Assembly')
     
@@ -63,5 +61,33 @@ def ChosenModels():
 
     Log('Weighted')
     Log( regression_report(y_test, yTestPred) )
+    
+Não funciona:
 
-#incluir na tese https://www.frontiersin.org/articles/10.3389/fgene.2017.00072/full
+self.GridSearch(NuSVC(), 
+{'nu':[0.02,0.05,0.1,0.2],
+'kernel':['linear','poly','rbf','sigmoid'],
+'degree':[1,2,3,4,5,6,7,8,9],
+'coef0':[0.0, 0.01, 0.1, 1.0],
+'tol':[0.001, 0.01, 0.1],
+'cache_size':[200000]} )
+
+self.GridSearch(RidgeClassifierCV(),
+{'normalize':[True, False],
+'class_weight':['balanced'],
+'alphas':[0.2,0.5,1.,2.,5.,10.]})
+
+
+Métricas de regressao
+"""
+self.WriteLog('Mean absolute error ' + str(mean_absolute_error(y_true, y_pred)))
+self.WriteLog('Median absolute error '+ str(median_absolute_error(y_true, y_pred)))
+self.WriteLog('Mean squared error '+ str(mean_squared_error(y_true, y_pred)))
+self.WriteLog('Max error '+ str(max_error(y_true, y_pred)))
+self.WriteLog('Explained variance score '+ str(explained_variance_score(y_true, y_pred)))
+error = y_true - y_pred
+percentil = [5,25,50,75,95]
+percentil_value = numpy.percentile(error, percentil)
+for i in range(len(percentil)):
+    self.WriteLog('Percentil '+str(percentil[i])+': '+str(percentil_value[i]))
+"""

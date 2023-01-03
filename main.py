@@ -1,19 +1,30 @@
 ################################################################################
 
                             # parameters #
+
+import sys
+try:
+    #cpus used with eggnog-mapper
+    n_cpus = int(sys.argv[1])
+except IndexError:
+    n_cpus = 1
     
-#phenotype of interest
-phenotype = 'pathways'
-pathway_specification = 'nitrogen_fixation'
+phenotype = ['pathways',
+             'range_tmp',
+             'range_salinity',
+             'optimum_tmp',
+             'optimum_ph'][4]
+
+pathway_specification = ['nitrogen_fixation',
+                         'nitrate_reduction',
+                         'fermentation',
+                         'sulfate_reduction'][0]
 
 #if it's a classification/label or regression task
-classification_or_regression = 'classification'
-#classification_or_regression = 'regression'
+classification_or_regression = ['classification','regression'][1]
 
-is_multioutput = False
-
-#cpus used with eggnog-mapper
-n_cpus = 50
+#if is multioutput
+is_multioutput = True
 
 #the lower the threshold the more stern the filter
 redundancy_threshold = 0.9
@@ -25,25 +36,21 @@ curated_or_hypothetical = 1
 
                      # data collection and organization #
 
-from data_module.collect_data import CollectData
-from data_module.mount_data import MountDataset
-from data_module.transform_data import TransformData
+from scripts.data_classes import CollectData, TransformData, MountDataset
 
 CollectData( phenotype, n_cpus, specific_pathway = pathway_specification )
-
 TransformData( phenotype, ortholog_groups_DB = curated_or_hypothetical )
-
 MountDataset( phenotype, redundancy_threshold )
 
 ################################################################################
 
              # hyper-parameters search: training & evaluation #
 
-from training_module.sklearn_training import Sklearn_Training
-from training_module.lgbm_training import LGBM
-from training_module.ann_training import ANN
+from scripts.training import LGBM, Sklearn
+LGBM( phenotype, classification_or_regression )
+Sklearn( phenotype, classification_or_regression, multioutput = is_multioutput )
 
-Sklearn_Training( phenotype, classification_or_regression, multioutput = is_multioutput )
-LGBM( phenotype, classification_or_regression, multioutput = is_multioutput )
+#from scripts.training import ANN
+#ANN(phenotype, classification_or_regression, multioutput = is_multioutput)
 
 ################################################################################
