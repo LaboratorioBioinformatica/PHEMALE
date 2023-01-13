@@ -1,3 +1,4 @@
+import sys
 from .data_classes import DataIO
 from numba import jit
 from copy import deepcopy
@@ -60,9 +61,9 @@ class Sklearn:
         
             HGS = HalvingGridSearchCV( estimator = model, 
                                        param_grid=params, 
-                                       cv=3, 
-                                       factor=3, 
-                                       n_jobs=-1, 
+                                       cv=6,
+                                       factor=4,
+                                       n_jobs=-1,
                                        min_resources='exhaust')
             
             HGS.fit( x_train, y_train )
@@ -78,10 +79,10 @@ class Sklearn:
             y_train_ = numpy.hsplit(y_train, len(y_train[0]))[0]
             y_train_ = numpy.ravel(y_train_)
 
-            HGS = HalvingGridSearchCV( estimator = deepcopy(model), 
-                                       param_grid=params, 
-                                       cv=3, 
-                                       factor=3, 
+            HGS = HalvingGridSearchCV( estimator = deepcopy(model),
+                                       param_grid=params,
+                                       cv=6,
+                                       factor=4,
                                        n_jobs=-1, 
                                        min_resources='exhaust')
 
@@ -97,13 +98,15 @@ class Sklearn:
             
             elif self.classification_or_regression == 'regression':
                 model = MultiOutputRegressor( model, n_jobs = -1 ).set_params(**params)
+            else:
+                sys.exit('Wrong classification_or_regression input')
             
             model.fit( x_train, y_train )
             y_pred = model.predict( x_test )
             
-        #self.dataIO.SaveModel(final_model, str( HGS.best_estimator_ ).split( '(' )[0])
-        
         self.dataIO.Metrics( y_test, y_pred )
+        self.dataIO.Graphs(y_test, y_pred, str( HGS.best_estimator_ ).split( '(' )[0])
+        #self.dataIO.SaveModel(final_model, str( HGS.best_estimator_ ).split( '(' )[0])
     
     """
     Function: Implements GridSearch in Sklearn models.
@@ -230,15 +233,15 @@ class Sklearn:
                               multioutput_ensemble = self.multioutput )
     
         elif self.classification_or_regression == 'regression':
-        
+
             self.GridSearch(LinearRegression(),
                               {'fit_intercept':[True]})
-
-            self.GridSearch(Ridge(), 
-                              {'alpha':[0.5,1.0,5.0,10.0,15.0,20.0],
-                               'max_iter':[200,500,800,1000,2000,4000,8000,13000,20000],
-                               'tol':[0.001,0.01,0.1,1.0],
-                               'solver':['svd','cholesky','lsqr','sparse_cg','sag','saga']})
+            
+            self.GridSearch(KNeighborsRegressor(), 
+                              {'n_neighbors':[2,5], 
+                               'weights':['uniform','distance'], 
+                               'algorithm':['ball_tree','kd_tree','brute'], 
+                               'leaf_size':[50,100,1000,10000]})
 
             self.GridSearch(RandomForestRegressor(), 
                               {'n_estimators':[100,300,500,700,1000,5000,10000], 
@@ -246,78 +249,17 @@ class Sklearn:
                                'max_features':['auto','sqrt','log2'],
                                'bootstrap':['False','True'],
                                'ccp_alpha':[0.0,0.003,0.005,0.01,0.02,0.03,0.05,0.1,0.15,0.2]})
-
-            self.GridSearch(SVR(), 
-                              {'kernel':['linear','poly','rbf','sigmoid'],
-                               'degree':[2,3,4,5,6,7], 
-                               'C':[0.1,0.5,1.0,2.0,5.0],
-                               'coef0':[0.0, 0.01, 0.1, 1.0],
-                               'tol':[0.001],
-                               'cache_size':[200000]})
-
-            self.GridSearch(Lasso(), 
-                              {'alpha':[1,3,5,10],
-                               'max_iter':[200,500,2000],
-                               'tol':[0.01,0.1,1.0],
-                               'positive':[False,True]})
-
-            self.GridSearch(ElasticNet(), 
-                              {'alpha':[1.0,3.0,5.0,10.0],
-                               'l1_ratio':[0.2,0.5,0.8],
-                               'max_iter':[200,500,2000],
-                               'tol':[0.01,0.1,1.0],
-                               'positive':[False,True]})
-
-            self.GridSearch(TweedieRegressor(), 
-                              {'power':[0,1,2,3],
-                               'alpha':[1.0e-4,0.1,0.5,1.0,2.0,5.0],
-                               'max_iter':[200,500,2000],
-                               'tol':[0.01,0.1,0.5]})
-
-            self.GridSearch(PassiveAggressiveRegressor(), 
-                              {'C':[0.1,0.5,1.0,2.0,5.0],
-                               'fit_intercept':[True,False],
-                               'max_iter':[200,500,2000],
-                               'tol':[0.01,0.1,0.5],
-                               'early_stopping':[True],
-                               'validation_fraction':[0.2,0.3]})
-
-            self.GridSearch(QuantileRegressor(), 
-                              {'fit_intercept':[True],
-                               'quantile':[0.15,0.25,0.5,0.8,0.99], 
-                               'alpha':[0,1.0e-3,0.1,1.0,5.0], 
-                               'solver':['interior-point','highs-ds','highs-ipm','highs','revised simplex']})
-
-            self.GridSearch(TheilSenRegressor(), 
-                              {'fit_intercept':[True],
-                               'max_subpopulation':[200,500,1000,5000],
-                               'max_iter':[200,500,2000],
-                               'tol':[0.03,0.1,0.5]})
-
-            self.GridSearch(KernelRidge(), 
-                              {'kernel':['additive_chi2','chi2','linear','poly','polynomial','rbf',
-                                         'laplacian','sigmoid','cosine'],
-                               'alpha':[1.0e-4,0.2,1.0,5.0],
-                               'degree':[2,3,4,5,6,7],
-                               'gamma':[0,1.0e-4,0.3,1.0,5.0],
-                               'coef0':[0.0,0.03,0.1,1.0]})
-
+            
             self.GridSearch(PLSRegression(), 
                               {'n_components':[5,10,20,100],
                                'max_iter':[100,500,2000],
-                               'tol':[0.01,0.1,0.5]})
-
-            self.GridSearch(KNeighborsRegressor(), 
-                              {'n_neighbors':[2,5], 
-                               'weights':['uniform','distance'], 
-                               'algorithm':['ball_tree','kd_tree','brute'], 
-                               'leaf_size':[50,100,1000,10000]})
-
-            self.GridSearch(AdaBoostRegressor(), 
-                              {'n_estimators':[20,50,100,500],
-                               'learning_rate':[0.01,0.1,0.5],
-                               'loss':['linear','square','exponential']})
-
+                               'tol':[0.01,0.1,0.5]},
+                               multioutput_ensemble = self.multioutput)
+            
+            ###########################################
+            quit() ####################################
+            ###########################################
+            
             self.GridSearch(SGDRegressor(), 
                               {'loss':['squared_error','huber','epsilon_insensitive','squared_epsilon_insensitive'], 
                                'penalty':['l1','l2','elasticnet'], 
@@ -358,7 +300,7 @@ class Sklearn:
                                'eps':[2.2e-16,0.1,1.0],
                                'fit_path':[False],
                                'jitter':[None,0.1,0.5,1.0]})
-
+            
             self.GridSearch(BayesianRidge(), 
                               {'tol':[0.01,0.1,0.5],
                                'n_iter':[200,500,2000], 
@@ -374,6 +316,72 @@ class Sklearn:
             
             self.GridSearch(OrthogonalMatchingPursuit(), 
                               {'tol':[0.01,0.1,1.0]})
+            
+            self.GridSearch(Ridge(), 
+                              {'alpha':[0.5,1.0,5.0,10.0,15.0,20.0],
+                               'max_iter':[200,500,800,1000,2000,4000,8000,13000,20000],
+                               'tol':[0.001,0.01,0.1,1.0],
+                               'solver':['svd','cholesky','lsqr','sparse_cg','sag','saga']})
+
+            self.GridSearch(SVR(), 
+                              {'kernel':['linear','poly','rbf','sigmoid'],
+                               'degree':[2,3,4,5,6,7], 
+                               'C':[0.1,0.5,1.0,2.0,5.0],
+                               'coef0':[0.0, 0.01, 0.1, 1.0],
+                               'tol':[0.001],
+                               'cache_size':[200000]})
+
+            self.GridSearch(Lasso(), 
+                              {'alpha':[1,3,5,10],
+                               'max_iter':[200,500,2000],
+                               'tol':[0.01,0.1,1.0],
+                               'positive':[False,True]})
+
+            self.GridSearch(ElasticNet(), 
+                              {'alpha':[1.0,3.0,5.0,10.0],
+                               'l1_ratio':[0.2,0.5,0.8],
+                               'max_iter':[200,500,2000],
+                               'tol':[0.01,0.1,1.0],
+                               'positive':[False,True]})
+
+            self.GridSearch(AdaBoostRegressor(), 
+                              {'n_estimators':[20,50,100,500],
+                               'learning_rate':[0.01,0.1,0.5],
+                               'loss':['linear','square','exponential']})
+            
+            self.GridSearch(TweedieRegressor(), 
+                              {'power':[0,1,2,3],
+                               'alpha':[1.0e-4,0.1,0.5,1.0,2.0,5.0],
+                               'max_iter':[200,500,2000],
+                               'tol':[0.01,0.1,0.5]})
+
+            self.GridSearch(PassiveAggressiveRegressor(), 
+                              {'C':[0.1,0.5,1.0,2.0,5.0],
+                               'fit_intercept':[True,False],
+                               'max_iter':[200,500,2000],
+                               'tol':[0.01,0.1,0.5],
+                               'early_stopping':[True],
+                               'validation_fraction':[0.2,0.3]})
+
+            self.GridSearch(QuantileRegressor(), 
+                              {'fit_intercept':[True],
+                               'quantile':[0.15,0.25,0.5,0.8,0.99], 
+                               'alpha':[0,1.0e-3,0.1,1.0,5.0], 
+                               'solver':['interior-point','highs-ds','highs-ipm','highs','revised simplex']})
+
+            self.GridSearch(TheilSenRegressor(), 
+                              {'fit_intercept':[True],
+                               'max_subpopulation':[200,500,1000,5000],
+                               'max_iter':[200,500,2000],
+                               'tol':[0.03,0.1,0.5]})
+
+            self.GridSearch(KernelRidge(), 
+                              {'kernel':['additive_chi2','chi2','linear','poly','polynomial','rbf',
+                                         'laplacian','sigmoid','cosine'],
+                               'alpha':[1.0e-4,0.2,1.0,5.0],
+                               'degree':[2,3,4,5,6,7],
+                               'gamma':[0,1.0e-4,0.3,1.0,5.0],
+                               'coef0':[0.0,0.03,0.1,1.0]})
 
     def __init__(self, phenotype, classification_or_regression, multioutput = False):
         
@@ -382,7 +390,7 @@ class Sklearn:
         self.multioutput = multioutput
         
         self.dataIO = DataIO( phenotype, classification_or_regression )
-        self.x_train, self.y_train, self.x_test, self.y_test, self.labelize = self.dataIO.GetTrainingData('data.joblib', splitTrainTest = 0.3, labelize = False)
+        self.x_train, self.y_train, self.x_test, self.y_test, self.labelize = self.dataIO.GetTrainingData('data.joblib', splitTrainTest = 0.2, labelize = False)
         
         self.Sklearn_Exploratory()
         
@@ -400,56 +408,61 @@ class LGBM:
 
         self.dataIO = DataIO( self.phenotype, self.classification_or_regression )
         
-        x_train, y_train, x_test, y_test, labelize = self.dataIO.GetTrainingData('data.joblib', splitTrainTest = 0.3)
+        x_train, y_train, x_test, y_test, labelize = self.dataIO.GetTrainingData('data.joblib', splitTrainTest = 0.2)
         
         best_config = self.GridSearch(x_train, y_train, x_test, y_test)
         
         x_train, y_train, labelize = self.dataIO.GetTrainingData('data.joblib')
         final_model = self.FinalModel(best_config, x_train, y_train)
         
-        self.dataIO.SaveModel(final_model, 'lgbm')
+        #self.dataIO.SaveModel(final_model, 'lgbm')
 
     def GridSearch(self, x_train, y_train, x_test, y_test):
         
         lgbm = AutoML()
 
         if self.classification_or_regression == 'classification':
-            metric = 'macro_f1'
+            metric = 'log_loss'
+            #metric = 'macro_f1'
         elif self.classification_or_regression == 'regression':
-            metric = 'mse'
+            metric = 'r2'
         
-        settings = {'time_budget':4*60*60,
+        settings = {'time_budget':240*60*60,
                     'task':self.classification_or_regression,
                     'estimator_list':['lgbm'],
                     'metric':metric,
                     'early_stop':'True'}
 
-        y_train_ = numpy.hsplit(y_train, len(y_train[0]))[0]
-        y_train_ = numpy.ravel(y_train_)
+        y_train = numpy.hsplit(y_train, len(y_train[0]))[0]
+        y_train = numpy.ravel(y_train)
+        y_test = numpy.hsplit(y_test, len(y_test[0]))[0]
+        y_test = numpy.ravel(y_test)
         
-        lgbm.fit( x_train, y_train_, **settings)
+        lgbm.fit(X_train=x_train, y_train=y_train, **settings)
 
         self.dataIO.WriteLog(lgbm.model.estimator)
 
         y_pred = lgbm.predict(x_test)
-
+        
         self.dataIO.Metrics(y_test, y_pred)
+        
+        self.dataIO.Graphs(y_test, y_pred, 'lgbm')
 
         return lgbm.best_config
 
     def FinalModel(self, config, x, y):
 
         if self.classification_or_regression == 'classification':
-            lgbm = LGBMClassifier(**config)
+            lgbm = MultiOutputClassifier( LGBMClassifier(**config), n_jobs = -1 )
 
         elif self.classification_or_regression == 'regression':
-            lgbm = LGBMRegressor(**config)
+            lgbm = MultiOutputRegressor( LGBMRegressor(**config), n_jobs = -1 )
 
         lgbm.fit(x, y)
         return lgbm
     
 #################################################################################################################################
-
+"""
 import os
 import tensorflow as tf
 from tensorflow.data import Dataset
@@ -457,9 +470,8 @@ from tensorflow import keras
 import keras_tuner as kt        
 from tensorflow import distribute
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.models import load_model
+#from tensorflow.keras.models import load_model
 
-"""
 class ANN():
     os.environ['TF_GPU_ALLOCATOR']='cuda_malloc_async'
 

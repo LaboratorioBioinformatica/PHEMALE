@@ -26,11 +26,10 @@ classification_or_regression = ['classification','regression'][1]
 #if is multioutput
 is_multioutput = True
 
-#the lower the threshold the more stern the filter
-redundancy_threshold = 0.9
-
 # 1 if the ortholog groups are curated or 2 if they are hypothetical
-curated_or_hypothetical = 1
+curated_or_hypothetical = 2
+
+################################################################################
 
 ################################################################################
 
@@ -40,15 +39,15 @@ from scripts.data_classes import CollectData, TransformData, MountDataset
 
 CollectData( phenotype, n_cpus, specific_pathway = pathway_specification )
 TransformData( phenotype, ortholog_groups_DB = curated_or_hypothetical )
-MountDataset( phenotype, redundancy_threshold )
+MountDataset( phenotype )
 
 ################################################################################
 
              # hyper-parameters search: training & evaluation #
 
 from scripts.training import LGBM, Sklearn
-LGBM( phenotype, classification_or_regression )
 Sklearn( phenotype, classification_or_regression, multioutput = is_multioutput )
+LGBM( phenotype, classification_or_regression )
 
 #from scripts.training import ANN
 #ANN(phenotype, classification_or_regression, multioutput = is_multioutput)

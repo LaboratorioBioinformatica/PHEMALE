@@ -1,4 +1,5 @@
 import os
+import sys
 from numba import jit
 import pandas
 pandas.options.display.max_colwidth = 2000  #higher data threshold limit for pandas
@@ -49,8 +50,8 @@ class CollectData:
         # if phenotype is numeric
         if phenotype == 'optimum_tmp' or phenotype == 'optimum_ph':
 
-            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].replace( 0.0, 1.0)
-            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].fillna(1.0)
+            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].replace( 0.0, 0.5)
+            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].fillna(0.5)
             madin['phenotype2'] = madin['phenotype1'].add(madin[phenotype+'.stdev']) # phenotype2 = Higher numerical value = mean + stdev
             madin['phenotype1'] = madin['phenotype1'].sub(madin[phenotype+'.stdev']) # phenotype1 = Lower numerical value = mean - stdev
         
@@ -217,22 +218,23 @@ class TransformData:
                 os.system('rm ' + file)
         return [0]
     
+    #values suggested by https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3820096/
     @jit
     def TransformEVALUE(self, evalue):
+
+        maxValue = 1
+        middle = 30
+        curve = middle/3
         
-        middle = 9
-        curve = middle/5
-        maxValue = 10
-        
-        evalue = -numpy.log10( float(evalue) )
-        
-        if evalue < 0:
+        if evalue > 10**-10:
             return 0
         elif evalue == 0:
             return maxValue
         
+        evalue = -numpy.log10( float(evalue) )
+        
         evalue = (evalue-middle)/curve
-        return round( (maxValue / (1 + numpy.exp(-evalue))), 1 )
+        return round( (maxValue / (1 + numpy.exp(-evalue))), 2 )
     
     #Parameters 
     #ortholog_groups_DB: 1 or 2; 1 for curated groups (COG and COG+); 2 for hypothetical groups (COG, COG+ and EGGNOG);
@@ -244,7 +246,7 @@ class TransformData:
         
             try:
                 OG = row.eggNOG_OGs.split(',')[ortholog_groups_DB].split('@')[0]
-                transformedEvalue = self.TransformEVALUE(row.evalue)
+                transformedEvalue = self.TransformEVALUE(float(row.evalue))
 
                 try:
                     index = self.OG_columns.index(OG)
@@ -259,7 +261,7 @@ class TransformData:
         
             except AttributeError:
                 continue
-        
+
         return genome
 
     def __init__(self, phenotype, ortholog_groups_DB = 1 ):
@@ -286,12 +288,13 @@ class TransformData:
             dump( self.OG_columns, './results/'+phenotype+'/data/OGColumns.joblib')
             print('Processed data')
         else:
-            print('Error on data collection. Rerun from start.')
-            quit()
+            sys.exit('Error on data collection. Rerun from start.')
             
 #####################################################################################################################
 
-from scipy.stats.stats import pearsonr
+import statistics
+from scipy.stats import pearsonr
+import math
 
 class MountDataset:
     
@@ -331,12 +334,13 @@ class MountDataset:
         return genome, metadatum
     
     @jit
-    def CheckRedundancy(self, datum, data, threshold, number_of_OG_columns):
-        for i in data:
-            if i[number_of_OG_columns:] == datum[number_of_OG_columns:]:
-                if pearsonr( i[:number_of_OG_columns] , datum[:number_of_OG_columns] )[0] > threshold:
-                    return True
-        return False
+    def CheckRedundancy(self, datum, data, threshold):
+        if len(data) != 0:
+            for i in data:
+                if i[self.number_of_OG_columns:] == datum[self.number_of_OG_columns:]:
+                    if pearsonr( i[:self.number_of_OG_columns] , datum[:self.number_of_OG_columns] )[0] > threshold:
+                        return False
+        return True
 
     @jit
     def MountDataset(self, madin, number_of_OG_columns, redundancy_threshold ):
@@ -356,22 +360,48 @@ class MountDataset:
                         
                         genome, metadatum = self.GenerateDatum( folder + file, row, number_of_OG_columns )
                         
-                        if self.CheckRedundancy( genome, data, redundancy_threshold, number_of_OG_columns ) == False:
-                            
+                        if self.CheckRedundancy( genome, data, redundancy_threshold ) == True:
                             data.append( genome )
                             metadata.append( metadatum )
 
         return data, metadata
     
-    def __init__(self, phenotype, redundancy_threshold):
+    @jit
+    def CalculatePearsonThreshold(self, phenotype):
+        pearsons = []
+
+        for idx, row in self.madin.iterrows():
+            pearson = []
+            files = []
+            folder = '../data/genomes/'+str(row['taxid'])+'/'
+
+            if os.path.isdir(folder):
+                for file in os.listdir(folder):
+                    if file.endswith( '.annotations' + phenotype + '.joblib' ):
+                        file = load( folder+file )
+                        file = file + [0]*( self.number_of_OG_columns - len( file ))
+                        if len(files) > 0:
+                            for i in files:
+                                pearson.append( pearsonr( i , file )[0] )
+                        files.append( file )
+
+            if len(pearson) > 1:
+                pearsons.append(statistics.mean(pearson))
+            elif len(pearson) == 1:
+                pearsons.append(pearson[0])
+
+        return math.ceil( statistics.mean(pearsons)*100 )/100
+    
+    def __init__(self, phenotype):
         
         self.phenotype = phenotype
         phenotype_folder = './results/'+phenotype+'/data/'
         
-        madin = pandas.read_csv( phenotype_folder+'madin_'+self.phenotype+'.csv')
-        number_of_OG_columns = len( load(phenotype_folder+'OGColumns.joblib') )
+        self.madin = pandas.read_csv( phenotype_folder+'madin_'+self.phenotype+'.csv')
+        self.number_of_OG_columns = len( load(phenotype_folder+'OGColumns.joblib') )
 
-        data, metadata = self.MountDataset( madin, number_of_OG_columns, redundancy_threshold )
+        self.redundancy = self.CalculatePearsonThreshold(self.phenotype)
+        data, metadata = self.MountDataset( madin, self.number_of_OG_columns, self.redundancy )
 
         dump( metadata, phenotype_folder + 'metadata.joblib' )
         dump( data, phenotype_folder + 'data.joblib' )
@@ -395,6 +425,8 @@ class DataIO:
 
     def __init__(self, phenotype, classification_or_regression):
         
+        self.startTime = datetime.now()
+        
         self.phenotype = phenotype
         self.phenotype_directory = './results/'+phenotype+'/data/'
         
@@ -410,15 +442,14 @@ class DataIO:
     def WriteLog(self, text):
         
         if hasattr(self, 'results_ID_directory') == False:
-            #self.results_ID_directory = self.results_directory+'#'+str( date.today() )+'/'
-            self.results_ID_directory = self.results_directory+'#'+str( datetime.now() )+'/'
+            self.results_ID_directory = self.results_directory+'#'+ self.startTime.strftime("%Y-%m-%d_%H:%M") +'/'
             os.mkdir(self.results_ID_directory)
 
         with open(self.results_ID_directory+'log.txt', 'a+') as file:
             file.write(str(text)+'\n')
 
     def SaveModel(self, model, file_name):
-        dump(self.results_ID_directory+file_name+'.joblib', model)
+        dump(model, self.results_ID_directory+file_name+'.joblib')
 
     @jit
     def GetTrainingData(self, file, splitTrainTest = False, labelize = False):
@@ -482,8 +513,6 @@ class DataIO:
                 elif y[i][0] == 'no' and y[i][1] == 'no' and y[i][2] == 'no':
                     y[i] = 'none'
         
-        # verificar se precisa desta linha
-        #y = numpy.hsplit(y,[1])[0]
         return y
     
     @jit
@@ -493,7 +522,8 @@ class DataIO:
             y_test = self.LabelClassifier(y_test)
             y_pred = self.LabelClassifier(y_pred)
 
-            self.WriteLog( confusion_matrix( y_test, y_pred ) )
+            self.WriteLog(y_test)
+            self.WriteLog( multilabel_confusion_matrix( y_test, y_pred ) )
             self.WriteLog( classification_report( y_test, y_pred ) )
             
             #implementar retorno de alguma métrica (talvez AUC)
@@ -506,14 +536,15 @@ class DataIO:
             r2_lower = r2_score(y_test_lower, y_pred_lower)
             r2_higher = r2_score(y_test_higher, y_pred_higher)
             
-            self.WriteLog( 'R2 score of lower values: '+ str(r2_lower) )
-            self.WriteLog( 'R2 score of higher values: '+ str(r2_higher) )
+            self.WriteLog( 'R2 score of lower values: %.2f' % r2_lower )
+            self.WriteLog( 'R2 score of higher values: %.2f' % r2_higher )
             self.WriteLog( '' )
             
             return ( r2_lower, r2_higher )
 
     @jit
-    def Graphs(self, y_test, y_pred):
+    def Graphs(self, y_test, y_pred, name):
+        
         y_test_lower, y_test_higher = numpy.hsplit(y_test,[1])
         y_pred_lower, y_pred_higher = numpy.hsplit(y_pred,[1])
 
@@ -522,7 +553,14 @@ class DataIO:
         y_pred_lower = numpy.ravel(y_pred_lower)
         y_pred_higher = numpy.ravel(y_pred_higher)
 
-        plt.fill_between(x, y_test_lower, y_test_higher, color = 'red', alpha=0.15)
-        plt.fill_between(x, y_pred_lower, y_pred_higher, color = 'cyan', alpha=0.15)
+        x = [(i + j) / 2 for i, j in zip(y_test_lower, y_test_higher)]
+        y = [(i + j) / 2 for i, j in zip(y_pred_lower, y_pred_higher)]
+        y_uncertainty = [abs(i - j) / 2 for i, j in zip(y_pred_lower, y_pred_higher)]
+        
+        plt.figure( (datetime.now() - self.startTime).total_seconds() )
+        
+        plt.errorbar(x, y, yerr = y_uncertainty, marker=',', markersize=4)
+        #plt.fill_between(x, y_test_lower, y_test_higher, color = 'cyan', alpha=0.15)
+        #plt.fill_between(x, y_pred_lower, y_pred_higher, color = 'red', alpha=0.15)
 
-        plt.savefig(self.results_ID_directory + 'graph.png', bbox_inches="tight", dpi=600, format='png')
+        plt.savefig(self.results_ID_directory + name + '.png', bbox_inches="tight", dpi=600, format='png')
