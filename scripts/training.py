@@ -58,6 +58,7 @@ class Sklearn:
         #For simple classification or simple regression or natively multiouput models
         if len( y_train[0] ) == 1 or multioutput_ensemble == True:
             y_train = numpy.ravel(y_train)
+            y_test = numpy.ravel(y_test)
         
             HGS = HalvingGridSearchCV( estimator = model, 
                                        param_grid=params, 
@@ -103,7 +104,7 @@ class Sklearn:
             
             model.fit( x_train, y_train )
             y_pred = model.predict( x_test )
-            
+        
         self.dataIO.Metrics( y_test, y_pred, str( HGS.best_estimator_ ).split( '(' )[0] )
         
         #self.dataIO.SaveModel(final_model, str( HGS.best_estimator_ ).split( '(' )[0])

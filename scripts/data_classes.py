@@ -401,17 +401,19 @@ class MountDataset:
         return data, metadata
     
     def Taxonomy(self, metadata, saveFolder):
+        
         metadata = pandas.DataFrame(data=metadata[1:], columns=metadata[0])
         order = metadata.order.value_counts().rename_axis('data').reset_index(name='counts')
         families = len( metadata.family.value_counts().rename_axis('data').reset_index(name='counts') )
         genus = len( metadata.genus.value_counts().rename_axis('data').reset_index(name='counts') )
         species = len( metadata.species.value_counts().rename_axis('data').reset_index(name='counts') )
                           
-        with open(saveFolder+'taxonomy.log', 'w') as file:
+        with open(saveFolder+'metametadata.log', 'w') as file:
             file.write('Number of orders: ' + str(len(order)) + '\n')
             file.write('Number of families: ' + str(families) + '\n')
             file.write('Number of genus: ' + str(genus) + '\n')
             file.write('Number of species: ' + str(species))
+            file.write('Number of OGs: ' + str(self.number_of_OG_columns))
             
         colors = random.choices( list(mcolors.CSS4_COLORS.values()) , k = len(order) )
         orderGraph = order.plot(y='counts', kind='pie', figsize=(5, 5), labels = order.data, labeldistance=None, colors=colors)
@@ -559,6 +561,7 @@ class DataIO:
             self.WriteLog( classification_report( y_test, y_pred ) )
             
             #implementar retorno de alguma métrica (talvez AUC)
+            #https://github.com/vinyluis/Articles/blob/main/ROC%20Curve%20and%20ROC%20AUC/ROC%20Curve%20-%20Multiclass.ipynb
             #return
             
         elif self.classification_or_regression == 'regression':
