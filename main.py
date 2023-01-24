@@ -1,17 +1,18 @@
                             # parameters #
 
 import sys
+
 try:
-    #cpus used with eggnog-mapper
     n_cpus = int(sys.argv[1])
 except IndexError:
     n_cpus = 1
     
-phenotype = ['pathways',
-             'range_tmp',
-             'range_salinity',
-             'optimum_tmp',
-             'optimum_ph'][4]
+phenotype = ['pathways',       #0
+             'range_tmp',      #1
+             'range_salinity', #2
+             'optimum_tmp',    #3
+             'optimum_ph',     #4
+             'sporulation'][0]
 
 pathway_specification = ['nitrogen_fixation',
                          'nitrate_reduction',
@@ -19,10 +20,10 @@ pathway_specification = ['nitrogen_fixation',
                          'sulfate_reduction'][0]
 
 #if it's a classification/label or regression task
-classification_or_regression = ['classification','regression'][1]
+classification_or_regression = ['classification','regression'][0]
 
 #if is multioutput
-is_multioutput = True
+is_multioutput = False
 
 # 1 if the ortholog groups are curated or 2 if they are hypothetical
 curated_or_hypothetical = 2
@@ -33,8 +34,8 @@ curated_or_hypothetical = 2
 
 from scripts.data_classes import CollectData, TransformData, MountDataset
 
-CollectData( phenotype, n_cpus, specific_pathway = pathway_specification )
-TransformData( phenotype, ortholog_groups_DB = curated_or_hypothetical )
+#CollectData( phenotype, n_cpus, specific_pathway = pathway_specification )
+#TransformData( phenotype, ortholog_groups_DB = curated_or_hypothetical )
 MountDataset( phenotype )
 
 ################################################################################
@@ -42,10 +43,9 @@ MountDataset( phenotype )
              # hyper-parameters search: training & evaluation #
 
 from scripts.training import LGBM, Sklearn
+#from scripts.training import ANN
 Sklearn( phenotype, classification_or_regression, multioutput = is_multioutput )
 LGBM( phenotype, classification_or_regression )
-
-#from scripts.training import ANN
 #ANN(phenotype, classification_or_regression, multioutput = is_multioutput)
 
 ################################################################################

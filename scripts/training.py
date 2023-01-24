@@ -23,7 +23,7 @@ from sklearn.linear_model import RidgeClassifierCV
 from sklearn.linear_model import LogisticRegressionCV
 
 #Sklearn models used for regression
-from sklearn.linear_model import LinearRegression, Ridge, Lasso, Lars, LassoLars, ElasticNet, OrthogonalMatchingPursuit, BayesianRidge, ARDRegression, LogisticRegression, TweedieRegressor, SGDRegressor, Perceptron, PassiveAggressiveRegressor, QuantileRegressor, TheilSenRegressor, SGDRegressor
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, Lars, LassoLars, ElasticNet, OrthogonalMatchingPursuit, BayesianRidge, ARDRegression, LogisticRegression, TweedieRegressor, SGDRegressor, PassiveAggressiveRegressor, QuantileRegressor, TheilSenRegressor, SGDRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
 from sklearn.kernel_ridge import KernelRidge
@@ -104,8 +104,8 @@ class Sklearn:
             model.fit( x_train, y_train )
             y_pred = model.predict( x_test )
             
-        self.dataIO.Metrics( y_test, y_pred )
-        self.dataIO.Graphs(y_test, y_pred, str( HGS.best_estimator_ ).split( '(' )[0])
+        self.dataIO.Metrics( y_test, y_pred, str( HGS.best_estimator_ ).split( '(' )[0] )
+        
         #self.dataIO.SaveModel(final_model, str( HGS.best_estimator_ ).split( '(' )[0])
     
     """
@@ -119,6 +119,39 @@ class Sklearn:
     def Sklearn_Exploratory( self ):
 
         if self.classification_or_regression == 'classification':
+            
+            self.GridSearch(LogisticRegression(), 
+                              {'penalty':['l2','l1'],
+                               'tol':[0.001, 0.01, 0.05],
+                               'C':[0.1,0.5,1.0,2.0,5.0],
+                               'class_weight':['balanced'],
+                               'solver':['liblinear'],
+                               'max_iter':[20,50,100,500,1000,3000]} )
+            
+            ############################ aqui
+            quit()
+            ############################ aqui
+            
+            self.GridSearch(LogisticRegression(), 
+                              {'penalty':['l1','l2','none','elasticnet'],
+                               'tol':[0.001, 0.01, 0.05],
+                               'C':[0.1,0.5,1.0,2.0,5.0],
+                               'class_weight':['balanced'],
+                               'solver':['saga'],
+                               'max_iter':[20,50,100,500,1000,3000],
+                               'multi_class':['ovr','multinomial'],
+                               'l1_ratio':[0.2,0.5,0.7]}, 
+                              multioutput_ensemble = self.multioutput )
+            
+            self.GridSearch(LogisticRegression(), 
+                              {'penalty':['l2','none'],
+                               'tol':[0.001, 0.01, 0.05],
+                               'C':[0.1,0.5,1.0,2.0,5.0],
+                               'class_weight':['balanced'],
+                               'solver':['newton-cg','lbfgs','sag'],
+                               'max_iter':[20,50,100,500,1000,3000],
+                               'multi_class':['ovr','multinomial']},
+                              multioutput_ensemble = self.multioutput )
             
             self.GridSearch(KNN(), 
                              {'n_neighbors':[2,4,7,10],
@@ -137,36 +170,6 @@ class Sklearn:
                                'class_weight':['balanced'], 
                                'multi_class':['ovr'], 
                                'l1_ratios':[0.2,0.5,0.7]})
-            
-            self.GridSearch(LogisticRegression(), 
-                              {'penalty':['l2','none'],
-                               'tol':[0.001, 0.01, 0.05],
-                               'C':[0.1,0.5,1.0,2.0,5.0],
-                               'class_weight':[None,'balanced'],
-                               'solver':['newton-cg','lbfgs','sag'],
-                               'max_iter':[20,50,100,500,1000,3000],
-                               'multi_class':['ovr','multinomial']},
-                              multioutput_ensemble = self.multioutput )
-
-            self.GridSearch(LogisticRegression(), 
-                              {'penalty':['l2','l1'],
-                               'tol':[0.001, 0.01, 0.05],
-                               'C':[0.1,0.5,1.0,2.0,5.0],
-                               'class_weight':[None,'balanced'],
-                               'solver':['liblinear'],
-                               'max_iter':[20,50,100,500,1000,3000]}, 
-                              multioutput_ensemble = self.multioutput )
-
-            self.GridSearch(LogisticRegression(), 
-                              {'penalty':['l1','l2','none','elasticnet'],
-                               'tol':[0.001, 0.01, 0.05],
-                               'C':[0.1,0.5,1.0,2.0,5.0],
-                               'class_weight':[None,'balanced'],
-                               'solver':['saga'],
-                               'max_iter':[20,50,100,500,1000,3000],
-                               'multi_class':['ovr','multinomial'],
-                               'l1_ratio':[0.2,0.5,0.7]}, 
-                              multioutput_ensemble = self.multioutput )
             
             self.GridSearch(LogisticRegressionCV(),
                               {'Cs':[1,5,10,20], 
@@ -207,7 +210,7 @@ class Sklearn:
                                'coef0':[0.0, 0.01, 0.1, 1.0],
                                'tol':[0.001, 0.05],
                                'cache_size':[200000],
-                               'class_weight':[None,'balanced'],
+                               'class_weight':['balanced'],
                                'shrinking':[True,False],
                                'decision_function_shape':['ovo', 'ovr']}, 
                               multioutput_ensemble = self.multioutput )
@@ -237,28 +240,27 @@ class Sklearn:
             self.GridSearch(LinearRegression(),
                               {'fit_intercept':[True]})
             
-            self.GridSearch(KNeighborsRegressor(), 
-                              {'n_neighbors':[2,5], 
-                               'weights':['uniform','distance'], 
-                               'algorithm':['ball_tree','kd_tree','brute'], 
-                               'leaf_size':[50,100,1000,10000]})
+            ###########################################
+            quit()
+            ###########################################
 
+            self.GridSearch(PLSRegression(), 
+                              {'n_components':[5,10,20,100],
+                               'max_iter':[100,500,2000],
+                               'tol':[0.01,0.1,0.5]})
+            
             self.GridSearch(RandomForestRegressor(), 
                               {'n_estimators':[100,300,500,700,1000,5000,10000], 
                                'max_depth':[None,10,50,100,300],
                                'max_features':['auto','sqrt','log2'],
                                'bootstrap':['False','True'],
                                'ccp_alpha':[0.0,0.003,0.005,0.01,0.02,0.03,0.05,0.1,0.15,0.2]})
-            
-            self.GridSearch(PLSRegression(), 
-                              {'n_components':[5,10,20,100],
-                               'max_iter':[100,500,2000],
-                               'tol':[0.01,0.1,0.5]},
-                               multioutput_ensemble = self.multioutput)
-            
-            ###########################################
-            quit() ####################################
-            ###########################################
+
+            self.GridSearch(KNeighborsRegressor(),
+                              {'n_neighbors':[2,5], 
+                               'weights':['uniform','distance'], 
+                               'algorithm':['ball_tree','kd_tree','brute'], 
+                               'leaf_size':[50,100,1000,10000]})
             
             self.GridSearch(SGDRegressor(), 
                               {'loss':['squared_error','huber','epsilon_insensitive','squared_epsilon_insensitive'], 

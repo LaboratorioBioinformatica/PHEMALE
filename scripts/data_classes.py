@@ -137,7 +137,7 @@ class CollectData:
     """
     def RunEggNOG(self, file, n_jobs):
         os.system('./eggnog-mapper/emapper.py -i ' + file + '_genomic.fna --itype genome --genepred prodigal -o '+ file + 
-                  ' --cpu ' + str(n_jobs) + ' --tax_scope 2 --tax_scope_mode inner_broadest --temp_dir ./eggnog-mapper/temp --override')
+                  ' --cpu ' + str(n_jobs) + ' --tax_scope Bacteria --tax_scope_mode inner_broadest --temp_dir ./eggnog-mapper/temp --override')
 
     """
     Function: 
@@ -151,25 +151,24 @@ class CollectData:
         for idx_madin, row_madin in madin.iterrows():
 
             madin_ncbi = ncbi.loc[ncbi.taxid == str( row_madin.taxid )]
-
             madin_ncbi = madin_ncbi[:number_genomes_per_species]
 
-            for idx_madin_ncbi, row_madin_ncbi in madin_ncbi.iterrows():
+            if len(madin_ncbi.index) > 0: # check if dataframe is not empty
                 
-                accession = row_madin_ncbi.ftp_path.split('/',9)[-1]
-                folder = '../data/genomes/'+str(row_madin_ncbi.taxid)+'/'
+                folder = '../data/genomes/'+str(row_madin.taxid)+'/'
 
                 if os.path.isdir( folder ) == False:
                     os.mkdir( folder )
-
-                # if eggnog-mapper file already exists go to next for iteration
-                if os.path.isfile( folder + accession + '.emapper.annotations') == True:
-                    continue
-
-                self.DownloadData( row_madin_ncbi.ftp_path+'/'+accession+'_genomic.fna.gz', folder, accession)
-
-                self.RunEggNOG( folder + accession, n_jobs)
-
+                
+                for idx_madin_ncbi, row_madin_ncbi in madin_ncbi.iterrows():
+                    accession = row_madin_ncbi.ftp_path.split('/',9)[-1]
+                    
+                    if os.path.isfile( folder + accession + '.emapper.annotations') == True:
+                        continue #if eggnog-mapper file already exists skip
+                    else:
+                        self.DownloadData( row_madin_ncbi.ftp_path+'/'+accession+'_genomic.fna.gz', folder, accession)
+                        self.RunEggNOG( folder + accession, n_jobs)
+                
                 for file in os.listdir( folder ):
                     if file.endswith('.emapper.annotations') == False and file.endswith('.joblib') == False:
                         os.system('rm -r ' + folder + file)
@@ -186,7 +185,7 @@ class CollectData:
         ncbi = self.ParseNCBI()
 
         # maximum number of genomes collected per species
-        number_genomes_per_species = 5
+        number_genomes_per_species = 3
         
         self.CreateDatabase( madin, ncbi, number_genomes_per_species, n_jobs )
 
@@ -222,19 +221,19 @@ class TransformData:
     @jit
     def TransformEVALUE(self, evalue):
 
-        maxValue = 1
-        middle = 30
+        maxValue = 1.0
+        middle = 20.0
         curve = middle/3
+        threshold = 10**(-6)
         
-        if evalue > 10**-10:
+        if evalue > threshold:
             return 0
         elif evalue == 0:
             return maxValue
-        
-        evalue = -numpy.log10( float(evalue) )
-        
-        evalue = (evalue-middle)/curve
-        return round( (maxValue / (1 + numpy.exp(-evalue))), 2 )
+        else:
+            evalue = -numpy.log10( float(evalue) )
+            evalue = (evalue-middle)/curve
+            return round( (maxValue / (1 + numpy.exp(-evalue))), 2 )
     
     #Parameters 
     #ortholog_groups_DB: 1 or 2; 1 for curated groups (COG and COG+); 2 for hypothetical groups (COG, COG+ and EGGNOG);
@@ -288,83 +287,29 @@ class TransformData:
             dump( self.OG_columns, './results/'+phenotype+'/data/OGColumns.joblib')
             print('Processed data')
         else:
-            sys.exit('Error on data collection. Rerun from start.')
-            
+            sys.exit('Error found and corrected on data collection. Run program again.')
+
 #####################################################################################################################
 
 import statistics
 from scipy.stats import pearsonr
 import math
+import matplotlib.colors as mcolors
+import random
 
 class MountDataset:
-    
-    def GenerateMetadata( self ):
-        
-        metadata = [['genome', 'class', 'order', 'family', 'genus', 'species']]
-        
-        if self.phenotype == 'range_salinity' or self.phenotype == 'optimum_ph':
-            metadata[0] = metadata[0] + ['phenotype1','phenotype2']
-        elif self.phenotype == 'range_tmp':
-            metadata[0] = metadata[0] + ['phenotype1','phenotype2','phenotype3']
-        elif self.phenotype == 'pathways' or self.phenotype == 'motility':
-            metadata[0] = metadata[0] + ['phenotype1']
-            
-        return metadata
-    
-    def GenerateDatum( self, file, row, number_of_OG_columns ):
-        
-        genome = load( file )
-        genome = genome + [0]*( number_of_OG_columns - len( genome ))
-        
-        metadatum = [file, row.classes, row.order, row.family, row.genus, row.species]
-        
-        append = None
-        if self.phenotype == 'range_salinity' or self.phenotype == 'optimum_ph' or self.phenotype == 'optimum_tmp':
-            append = [ row.phenotype1 , row.phenotype2 ]
-        
-        elif self.phenotype == 'range_tmp':
-            append = [ row.phenotype1 , row.phenotype2 , row.phenotype3 ]
-        
-        elif self.phenotype == 'pathways' or self.phenotype == 'motility':
-            append = [ row.phenotype1 ]
-        
-        genome = genome + append
-        metadatum = metadatum + append
-        
-        return genome, metadatum
-    
+
     @jit
     def CheckRedundancy(self, datum, data, threshold):
+        ###################################### aqui
+        return True
+        ###################################### aqui
         if len(data) != 0:
             for i in data:
                 if i[self.number_of_OG_columns:] == datum[self.number_of_OG_columns:]:
                     if pearsonr( i[:self.number_of_OG_columns] , datum[:self.number_of_OG_columns] )[0] > threshold:
                         return False
         return True
-
-    @jit
-    def MountDataset(self, madin, number_of_OG_columns, redundancy_threshold ):
-        
-        data = []
-        metadata = self.GenerateMetadata()
-        
-        for idx, row in madin.iterrows():
-            
-            folder = '../data/genomes/'+str(row['taxid'])+'/'
-            
-            if os.path.isdir(folder):
-                
-                for file in os.listdir(folder):
-                    
-                    if file.endswith( '.annotations' + self.phenotype + '.joblib' ):
-                        
-                        genome, metadatum = self.GenerateDatum( folder + file, row, number_of_OG_columns )
-                        
-                        if self.CheckRedundancy( genome, data, redundancy_threshold ) == True:
-                            data.append( genome )
-                            metadata.append( metadatum )
-
-        return data, metadata
     
     @jit
     def CalculatePearsonThreshold(self, phenotype):
@@ -387,11 +332,92 @@ class MountDataset:
 
             if len(pearson) > 1:
                 pearsons.append(statistics.mean(pearson))
-            elif len(pearson) == 1:
+            if len(pearson) == 1:
                 pearsons.append(pearson[0])
 
         return math.ceil( statistics.mean(pearsons)*100 )/100
     
+    def GenerateMetadataHeader( self ):
+        
+        metadata = [['genome', 'class', 'order', 'family', 'genus', 'species']]
+        
+        if self.phenotype == 'range_salinity' or self.phenotype == 'optimum_ph':
+            metadata[0] = metadata[0] + ['phenotype1','phenotype2']
+        elif self.phenotype == 'range_tmp':
+            metadata[0] = metadata[0] + ['phenotype1','phenotype2','phenotype3']
+        elif self.phenotype == 'pathways' or self.phenotype == 'motility':
+            metadata[0] = metadata[0] + ['phenotype1']
+            
+        return metadata
+    
+    def GenerateDatum( self, file, row, number_of_OG_columns ):
+        
+        genome = load( file )
+        genome = genome + [0]*( number_of_OG_columns - len( genome ))
+        
+        metadatum = [file, row.classes, row.order, row.family, row.genus, row.species]
+        
+        append = None
+        if self.phenotype == 'range_salinity' or self.phenotype == 'optimum_tmp':
+            append = [ row.phenotype1 , row.phenotype2 ]
+        
+        if self.phenotype == 'optimum_ph':
+            #append = [ 10**(8-row.phenotype1) , 10**(8-row.phenotype2) ]
+            append = [ (10**3)*(2**(-row.phenotype1)) , (10**3)*(2**(-row.phenotype2)) ]
+
+        elif self.phenotype == 'range_tmp':
+            append = [ row.phenotype1 , row.phenotype2 , row.phenotype3 ]
+        
+        elif self.phenotype == 'pathways' or self.phenotype == 'motility':
+            append = [ row.phenotype1 ]
+        
+        genome = genome + append
+        metadatum = metadatum + append
+        
+        return genome, metadatum
+    
+    @jit
+    def MountDataset(self, madin, number_of_OG_columns, redundancy_threshold ):
+        
+        data = []
+        metadata = self.GenerateMetadataHeader()
+        
+        for idx, row in madin.iterrows():
+            
+            folder = '../data/genomes/'+str(row['taxid'])+'/'
+            
+            if os.path.isdir(folder):
+                
+                for file in os.listdir(folder):
+                    
+                    if file.endswith( '.annotations' + self.phenotype + '.joblib' ):
+                        
+                        genome, metadatum = self.GenerateDatum( folder + file, row, number_of_OG_columns )
+                        
+                        if self.CheckRedundancy( genome, data, redundancy_threshold ) == True:
+                            data.append( genome )
+                            metadata.append( metadatum )
+                        
+        return data, metadata
+    
+    def Taxonomy(self, metadata, saveFolder):
+        metadata = pandas.DataFrame(data=metadata[1:], columns=metadata[0])
+        order = metadata.order.value_counts().rename_axis('data').reset_index(name='counts')
+        families = len( metadata.family.value_counts().rename_axis('data').reset_index(name='counts') )
+        genus = len( metadata.genus.value_counts().rename_axis('data').reset_index(name='counts') )
+        species = len( metadata.species.value_counts().rename_axis('data').reset_index(name='counts') )
+                          
+        with open(saveFolder+'taxonomy.log', 'w') as file:
+            file.write('Number of orders: ' + str(len(order)) + '\n')
+            file.write('Number of families: ' + str(families) + '\n')
+            file.write('Number of genus: ' + str(genus) + '\n')
+            file.write('Number of species: ' + str(species))
+            
+        colors = random.choices( list(mcolors.CSS4_COLORS.values()) , k = len(order) )
+        orderGraph = order.plot(y='counts', kind='pie', figsize=(5, 5), labels = order.data, labeldistance=None, colors=colors)
+        orderGraph.legend(loc="right", bbox_to_anchor=(3.0,0.5), fontsize=8, ncol=4)
+        orderGraph.figure.savefig(saveFolder + 'order.png', bbox_inches="tight", dpi=800)
+            
     def __init__(self, phenotype):
         
         self.phenotype = phenotype
@@ -400,12 +426,17 @@ class MountDataset:
         self.madin = pandas.read_csv( phenotype_folder+'madin_'+self.phenotype+'.csv')
         self.number_of_OG_columns = len( load(phenotype_folder+'OGColumns.joblib') )
 
-        self.redundancy = self.CalculatePearsonThreshold(self.phenotype)
-        data, metadata = self.MountDataset( madin, self.number_of_OG_columns, self.redundancy )
-
+        #self.redundancy = self.CalculatePearsonThreshold(self.phenotype)
+        #data, metadata = self.MountDataset( self.madin, self.number_of_OG_columns, self.redundancy )
+        
+        ###################################### aqui
+        data, metadata = self.MountDataset( self.madin, self.number_of_OG_columns, 0 )
+        ######################################
+        
         dump( metadata, phenotype_folder + 'metadata.joblib' )
         dump( data, phenotype_folder + 'data.joblib' )
-
+        self.Taxonomy(metadata, phenotype_folder )
+        
         print('Dataset & metadata constructed in directory: ' + phenotype_folder)
         
 #####################################################################################################################
@@ -456,7 +487,7 @@ class DataIO:
 
         number_of_OG_columns = len(load(self.phenotype_directory+'OGColumns.joblib') )
         
-        x = numpy.asarray( load( self.phenotype_directory + file ) )
+        x = numpy.asarray( load( self.phenotype_directory + file, mmap_mode='r+' ) )
         x, y = numpy.hsplit(x, [number_of_OG_columns])
         x = numpy.asarray( x, dtype=numpy.float16)
         x = numpy.nan_to_num(x, nan=0)
@@ -478,58 +509,67 @@ class DataIO:
                  for key, value in dictionary.items() }
     
     def LabelClassifier(self, y):
+
+        y_relabeled = []
         
         if self.phenotype == 'range_salinity':
             for i in range(len(y)):
                 if y[i][0] == 'yes' and y[i][1] == 'yes':
-                    y[i] = 'halotolerant'
+                    y_relabeled.append('halotolerant')
                 elif y[i][0] == 'yes' and y[i][1] == 'no':
-                    y[i] = 'halophilic'
+                    y_relabeled.append('halophilic')
                 elif y[i][0] == 'no' and y[i][1] == 'yes':
-                    y[i] = 'non-halophilic'
+                    y_relabeled.append('non-halophilic')
                 elif y[i][0] == 'no' and y[i][1] == 'no':
-                    y[i] = 'none'
+                    y_relabeled.append('none')
 
         if self.phenotype == 'range_tmp':
             for i in range(len(y)):
                 if y[i][0] == 'yes' and y[i][1] == 'yes' and y[i][2] == 'yes':
-                    y[i] = 'all'
-                    #y[i] = 'mesophilic, psychrophilic and thermophilic'
+                    #y_relabeled.append('all')
+                    y_relabeled.append('mesophilic, psychrophilic and thermophilic')
                 elif y[i][0] == 'yes' and y[i][1] == 'no' and y[i][2] == 'yes':
-                    y[i] = 'thermotolerant'
-                    #y[i] = 'mesophilic and thermophilic'
+                    #y_relabeled.append(y[i] = 'thermotolerant')
+                    y_relabeled.append('mesophilic and thermophilic')
                 elif y[i][0] == 'yes' and y[i][1] == 'yes' and y[i][2] == 'no':
-                    y[i] = 'psychrotolerant'
-                    #y[i] = 'mesophilic and psychrophilic'
+                    #y_relabeled.append('psychrotolerant')
+                    y_relabeled.append('mesophilic and psychrophilic')
                 elif y[i][0] == 'no' and y[i][1] == 'yes' and y[i][2] == 'yes':
-                    y[i] = 'SongOfIce&Fire'
-                    #y[i] = 'psychrophilic and thermophilic'
+                    #y_relabeled.append(y[i] = 'SongOfIce&Fire'
+                    y_relabeled.append('psychrophilic and thermophilic')
                 if y[i][0] == 'yes' and y[i][1] == 'no' and y[i][2] == 'no':
-                    y[i] = 'mesophilic'
+                    y_relabeled.append('mesophilic')
                 if y[i][0] == 'no' and y[i][1] == 'yes' and y[i][2] == 'no':
-                    y[i] = 'psychrophilic'
+                    y_relabeled.append('psychrophilic')
                 if y[i][0] == 'no' and y[i][1] == 'no' and y[i][2] == 'yes':
-                    y[i] = 'thermophilic'
+                    y_relabeled.append('thermophilic')
                 elif y[i][0] == 'no' and y[i][1] == 'no' and y[i][2] == 'no':
-                    y[i] = 'none'
+                    y_relabeled.append('none')
         
-        return y
+        return y_relabeled
     
     @jit
-    def Metrics(self, y_test, y_pred):
+    def Metrics(self, y_test, y_pred, name):
 
         if self.classification_or_regression == 'classification':
             y_test = self.LabelClassifier(y_test)
             y_pred = self.LabelClassifier(y_pred)
 
-            self.WriteLog(y_test)
             self.WriteLog( multilabel_confusion_matrix( y_test, y_pred ) )
             self.WriteLog( classification_report( y_test, y_pred ) )
             
             #implementar retorno de alguma métrica (talvez AUC)
-            #return 
+            #return
             
         elif self.classification_or_regression == 'regression':
+            
+            if self.phenotype == 'optimum_ph':
+                try:
+                    y_test = numpy.array( [ [-numpy.log2(j/(10**3)) for j in i] for i in y_test] )
+                    y_pred = numpy.array( [ [-numpy.log2(j/(10**3)) for j in i] for i in y_pred] )
+                except ValueError:
+                    sys.exit('Training went awry. Run program again.')
+
             y_test_lower, y_test_higher = numpy.hsplit(y_test,[1])
             y_pred_lower, y_pred_higher = numpy.hsplit(y_pred,[1])
             
@@ -540,9 +580,10 @@ class DataIO:
             self.WriteLog( 'R2 score of higher values: %.2f' % r2_higher )
             self.WriteLog( '' )
             
+            self.Graphs(y_test, y_pred, name)
+            
             return ( r2_lower, r2_higher )
 
-    @jit
     def Graphs(self, y_test, y_pred, name):
         
         y_test_lower, y_test_higher = numpy.hsplit(y_test,[1])
@@ -554,13 +595,13 @@ class DataIO:
         y_pred_higher = numpy.ravel(y_pred_higher)
 
         x = [(i + j) / 2 for i, j in zip(y_test_lower, y_test_higher)]
+        x_uncertainty = [abs(i - j) / 2 for i, j in zip(y_test_lower, y_test_higher)]
         y = [(i + j) / 2 for i, j in zip(y_pred_lower, y_pred_higher)]
         y_uncertainty = [abs(i - j) / 2 for i, j in zip(y_pred_lower, y_pred_higher)]
         
         plt.figure( (datetime.now() - self.startTime).total_seconds() )
         
-        plt.errorbar(x, y, yerr = y_uncertainty, marker=',', markersize=4)
-        #plt.fill_between(x, y_test_lower, y_test_higher, color = 'cyan', alpha=0.15)
-        #plt.fill_between(x, y_pred_lower, y_pred_higher, color = 'red', alpha=0.15)
-
+        plt.errorbar(x,y,xerr=x_uncertainty,yerr=y_uncertainty,
+                     marker='.',markerfacecolor='red',markersize=6,
+                     linestyle='none',capsize=0,elinewidth=0.2)
         plt.savefig(self.results_ID_directory + name + '.png', bbox_inches="tight", dpi=600, format='png')
