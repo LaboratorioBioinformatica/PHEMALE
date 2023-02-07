@@ -121,7 +121,6 @@ class Sklearn:
 
         if self.classification_or_regression == 'classification':
             
-            """
             self.GridSearch(LogisticRegression(), 
                               {'penalty':['l2','l1'],
                                'tol':[0.001, 0.01, 0.05],
@@ -166,7 +165,7 @@ class Sklearn:
                                'class_weight':['balanced'], 
                                'multi_class':['ovr'], 
                                'l1_ratios':[0.2,0.5,0.7]})
-            """
+
             self.GridSearch(LogisticRegressionCV(),
                               {'Cs':[1,5,10,20], 
                                'dual':[False], 
