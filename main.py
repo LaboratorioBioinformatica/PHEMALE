@@ -12,18 +12,18 @@ phenotype = ['pathways',       #0
              'range_salinity', #2
              'optimum_tmp',    #3
              'optimum_ph',     #4
-             'sporulation'][0]
+             'sporulation'][4]
 
 pathway_specification = ['nitrogen_fixation',
                          'nitrate_reduction',
                          'fermentation',
-                         'sulfate_reduction'][0]
+                         'sulfate_reduction'][1]
 
 #if it's a classification/label or regression task
-classification_or_regression = ['classification','regression'][0]
+classification_or_regression = ['classification','regression'][1]
 
 #if is multioutput
-is_multioutput = False
+is_multioutput = True
 
 # 1 if the ortholog groups are curated or 2 if they are hypothetical
 curated_or_hypothetical = 2
@@ -36,7 +36,7 @@ from scripts.data_classes import CollectData, TransformData, MountDataset
 
 #CollectData( phenotype, n_cpus, specific_pathway = pathway_specification )
 #TransformData( phenotype, ortholog_groups_DB = curated_or_hypothetical )
-MountDataset( phenotype )
+#MountDataset( phenotype )
 
 ################################################################################
 

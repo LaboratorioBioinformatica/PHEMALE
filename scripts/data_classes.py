@@ -133,7 +133,7 @@ class CollectData:
     """
     Function: Runs eggnog-mapper on genome fasta file using prodigal
     Parameters: file - genome fasta file
-                n_jobs - number of CPU cores to parallel eggnog-mapper
+                n_jobs - number of CPU cores dedicated to eggnog-mapper
     """
     def RunEggNOG(self, file, n_jobs):
         os.system('./eggnog-mapper/emapper.py -i ' + file + '_genomic.fna --itype genome --genepred prodigal -o '+ file + 
@@ -301,9 +301,6 @@ class MountDataset:
 
     @jit
     def CheckRedundancy(self, datum, data, threshold):
-        ###################################### aqui
-        return True
-        ###################################### aqui
         if len(data) != 0:
             for i in data:
                 if i[self.number_of_OG_columns:] == datum[self.number_of_OG_columns:]:
@@ -312,7 +309,30 @@ class MountDataset:
         return True
     
     @jit
-    def CalculatePearsonThreshold(self, phenotype):
+    def SelectFromFolderByMinPearson(self, folder, n_files):
+        files = []
+        pearson_values = []
+        pearson_files = []
+
+        for file in os.listdir(folder):
+            if file.endswith( '.annotations' + self.phenotype + '.joblib' ):
+                file = folder + file
+                genome = load( file )
+                genome = genome + [0]*( self.number_of_OG_columns - len( genome ))
+                for file2 in files:
+                    genome2 = load( file2 )
+                    genome2 = genome2 + [0]*( self.number_of_OG_columns - len( genome2 ))
+                    pearson_values.append( pearsonr( genome , genome2 )[0] )
+                    pearson_files.append( (file2, file) )
+                files.append( file )
+        
+        min_pearson_indexes = np.argsort(pearson_values)[:round(n_files/2)]
+        files = np.unique( np.delete( np.array(pearson_files), min_pearson_indexes) )[:n_files]
+        
+        return files
+    
+    @jit
+    def CalculatePearsonThreshold(self):
         pearsons = []
 
         for idx, row in self.madin.iterrows():
@@ -322,7 +342,7 @@ class MountDataset:
 
             if os.path.isdir(folder):
                 for file in os.listdir(folder):
-                    if file.endswith( '.annotations' + phenotype + '.joblib' ):
+                    if file.endswith( '.annotations' + self.phenotype + '.joblib' ):
                         file = load( folder+file )
                         file = file + [0]*( self.number_of_OG_columns - len( file ))
                         if len(files) > 0:
@@ -350,10 +370,11 @@ class MountDataset:
             
         return metadata
     
-    def GenerateDatum( self, file, row, number_of_OG_columns ):
+    @jit
+    def GenerateDatum( self, file, row ):
         
         genome = load( file )
-        genome = genome + [0]*( number_of_OG_columns - len( genome ))
+        genome = genome + [0]*( self.number_of_OG_columns - len( genome ))
         
         metadatum = [file, row.classes, row.order, row.family, row.genus, row.species]
         
@@ -364,11 +385,9 @@ class MountDataset:
         if self.phenotype == 'optimum_ph':
             #append = [ 10**(8-row.phenotype1) , 10**(8-row.phenotype2) ]
             append = [ (10**3)*(2**(-row.phenotype1)) , (10**3)*(2**(-row.phenotype2)) ]
-
         elif self.phenotype == 'range_tmp':
             append = [ row.phenotype1 , row.phenotype2 , row.phenotype3 ]
-        
-        elif self.phenotype == 'pathways' or self.phenotype == 'motility':
+        else:
             append = [ row.phenotype1 ]
         
         genome = genome + append
@@ -377,7 +396,7 @@ class MountDataset:
         return genome, metadatum
     
     @jit
-    def MountDataset(self, madin, number_of_OG_columns, redundancy_threshold ):
+    def MountDataset(self, madin, redundancy_threshold = False, minimal_correlation = True, max_files_per_species = 3 ):
         
         data = []
         metadata = self.GenerateMetadataHeader()
@@ -388,16 +407,23 @@ class MountDataset:
             
             if os.path.isdir(folder):
                 
-                for file in os.listdir(folder):
-                    
-                    if file.endswith( '.annotations' + self.phenotype + '.joblib' ):
-                        
-                        genome, metadatum = self.GenerateDatum( folder + file, row, number_of_OG_columns )
-                        
-                        if self.CheckRedundancy( genome, data, redundancy_threshold ) == True:
-                            data.append( genome )
-                            metadata.append( metadatum )
-                        
+                if minimal_correlation == True:
+                    files = self.SelectFromFolderByMinPearson(folder, max_files_per_species)
+                    for file in files:
+                        genome, metadatum = self.GenerateDatum( file, row )
+                        data.append( genome )
+                        metadata.append( metadatum )
+                
+                else:
+                    for file in os.listdir(folder):
+                        n_files_species = 0
+                        if file.endswith( '.annotations' + self.phenotype + '.joblib' ):
+                            genome, metadatum = self.GenerateDatum( folder + file, row )
+                            if (redundancy_threshold != False and self.CheckRedundancy( genome, data, redundancy_threshold ) == True) == True or redundancy_threshold == False and n_files_species < max_files_per_species:
+                                n_files_species = n_files_species + 1
+                                data.append( genome )
+                                metadata.append( metadatum )
+
         return data, metadata
     
     def Taxonomy(self, metadata, saveFolder):
@@ -428,12 +454,16 @@ class MountDataset:
         self.madin = pandas.read_csv( phenotype_folder+'madin_'+self.phenotype+'.csv')
         self.number_of_OG_columns = len( load(phenotype_folder+'OGColumns.joblib') )
 
-        #self.redundancy = self.CalculatePearsonThreshold(self.phenotype)
-        #data, metadata = self.MountDataset( self.madin, self.number_of_OG_columns, self.redundancy )
-        
-        ###################################### aqui
-        data, metadata = self.MountDataset( self.madin, self.number_of_OG_columns, 0 )
-        ######################################
+        """
+        data, metadata = self.MountDataset( self.madin, 
+                                           redundancy_threshold = self.CalculatePearsonThreshold(), 
+                                           minimal_correlation = False, 
+                                           max_files_per_species = 3 )
+        """
+        data, metadata = self.MountDataset( self.madin, 
+                                           redundancy_threshold = False, 
+                                           minimal_correlation = True, 
+                                           max_files_per_species = 2 )
         
         dump( metadata, phenotype_folder + 'metadata.joblib' )
         dump( data, phenotype_folder + 'data.joblib' )
@@ -510,8 +540,14 @@ class DataIO:
                  if isinstance(value, dict) else value) 
                  for key, value in dictionary.items() }
     
-    def LabelClassifier(self, y):
-
+    """
+    Function transform output to something interpretable to humans
+    """
+    def YTransform(self, y):
+        #para casos como o PLSRegression que por algum motivo devolve output como uma lista de lista de listas ao invés de apenas uma lsita de listas.
+        if len(y) == 1:
+            y = y[0]
+            
         y_relabeled = []
         
         if self.phenotype == 'range_salinity':
@@ -524,20 +560,15 @@ class DataIO:
                     y_relabeled.append('non-halophilic')
                 elif y[i][0] == 'no' and y[i][1] == 'no':
                     y_relabeled.append('none')
-
-        if self.phenotype == 'range_tmp':
+        elif self.phenotype == 'range_tmp':
             for i in range(len(y)):
                 if y[i][0] == 'yes' and y[i][1] == 'yes' and y[i][2] == 'yes':
-                    #y_relabeled.append('all')
                     y_relabeled.append('mesophilic, psychrophilic and thermophilic')
                 elif y[i][0] == 'yes' and y[i][1] == 'no' and y[i][2] == 'yes':
-                    #y_relabeled.append(y[i] = 'thermotolerant')
                     y_relabeled.append('mesophilic and thermophilic')
                 elif y[i][0] == 'yes' and y[i][1] == 'yes' and y[i][2] == 'no':
-                    #y_relabeled.append('psychrotolerant')
                     y_relabeled.append('mesophilic and psychrophilic')
                 elif y[i][0] == 'no' and y[i][1] == 'yes' and y[i][2] == 'yes':
-                    #y_relabeled.append(y[i] = 'SongOfIce&Fire'
                     y_relabeled.append('psychrophilic and thermophilic')
                 if y[i][0] == 'yes' and y[i][1] == 'no' and y[i][2] == 'no':
                     y_relabeled.append('mesophilic')
@@ -547,51 +578,72 @@ class DataIO:
                     y_relabeled.append('thermophilic')
                 elif y[i][0] == 'no' and y[i][1] == 'no' and y[i][2] == 'no':
                     y_relabeled.append('none')
-        
+        elif self.phenotype == 'optimum_ph':
+            try:
+                y_relabeled = numpy.asarray([[ -numpy.log2(j/(10**3)) for j in i] for i in y], dtype=numpy.float16)
+            except ValueError:
+                sys.exit('Training went awry. Run program again.')
+        else:
+            return y
+
         return y_relabeled
-    
-    @jit
+
     def Metrics(self, y_test, y_pred, name):
-
+        
+        y_test = self.YTransform(y_test)
+        y_pred = self.YTransform(y_pred)
+        
         if self.classification_or_regression == 'classification':
-            y_test = self.LabelClassifier(y_test)
-            y_pred = self.LabelClassifier(y_pred)
-
+        
             self.WriteLog( multilabel_confusion_matrix( y_test, y_pred ) )
             self.WriteLog( classification_report( y_test, y_pred ) )
-            
+
             #implementar retorno de alguma métrica (talvez AUC)
             #https://github.com/vinyluis/Articles/blob/main/ROC%20Curve%20and%20ROC%20AUC/ROC%20Curve%20-%20Multiclass.ipynb
             #return
-            
+
         elif self.classification_or_regression == 'regression':
-            
-            if self.phenotype == 'optimum_ph':
-                try:
-                    y_test = numpy.array( [ [-numpy.log2(j/(10**3)) for j in i] for i in y_test] )
-                    y_pred = numpy.array( [ [-numpy.log2(j/(10**3)) for j in i] for i in y_pred] )
-                except ValueError:
-                    sys.exit('Training went awry. Run program again.')
 
             y_test_lower, y_test_higher = numpy.hsplit(y_test,[1])
             y_pred_lower, y_pred_higher = numpy.hsplit(y_pred,[1])
             
+            y_test_lower = numpy.ravel(y_test_lower)
+            y_test_higher = numpy.ravel(y_test_higher)
+            y_pred_lower = numpy.ravel(y_pred_lower)
+            y_pred_higher = numpy.ravel(y_pred_higher)
+
+            number_of_not_predicted = 0
+            
+            index_nan = numpy.argwhere( numpy.isnan( y_pred_lower ) )
+            number_of_not_predicted = len(index_nan)
+            y_pred_lower = numpy.delete( y_pred_lower, index_nan )
+            y_test_lower = numpy.delete( y_test_lower, index_nan )
+            y_pred_higher = numpy.delete( y_pred_higher, index_nan )
+            y_test_higher = numpy.delete( y_test_higher, index_nan )
+            
+            index_nan = numpy.argwhere( numpy.isnan( y_pred_higher ) )
+            number_of_not_predicted = number_of_not_predicted + len(index_nan)
+            y_pred_lower = numpy.delete( y_pred_lower, index_nan )
+            y_test_lower = numpy.delete( y_test_lower, index_nan )
+            y_pred_higher = numpy.delete( y_pred_higher, index_nan )
+            y_test_higher = numpy.delete( y_test_higher, index_nan )
+            
             r2_lower = r2_score(y_test_lower, y_pred_lower)
             r2_higher = r2_score(y_test_higher, y_pred_higher)
-            
+
+            #if r2_lower > 0.8 and r2_higher > 0.8:
+            self.WriteLog( 'Number of values not pedicted: ' + str(number_of_not_predicted))
             self.WriteLog( 'R2 score of lower values: %.2f' % r2_lower )
             self.WriteLog( 'R2 score of higher values: %.2f' % r2_higher )
             self.WriteLog( '' )
-            
             self.Graphs(y_test, y_pred, name)
-            
-            return ( r2_lower, r2_higher )
 
+    @jit
     def Graphs(self, y_test, y_pred, name):
-        
+
         y_test_lower, y_test_higher = numpy.hsplit(y_test,[1])
         y_pred_lower, y_pred_higher = numpy.hsplit(y_pred,[1])
-
+        
         y_test_lower = numpy.ravel(y_test_lower)
         y_test_higher = numpy.ravel(y_test_higher)
         y_pred_lower = numpy.ravel(y_pred_lower)
@@ -604,7 +656,9 @@ class DataIO:
         
         plt.figure( (datetime.now() - self.startTime).total_seconds() )
         
-        plt.errorbar(x,y,xerr=x_uncertainty,yerr=y_uncertainty,
-                     marker='.',markerfacecolor='red',markersize=6,
-                     linestyle='none',capsize=0,elinewidth=0.2)
+        plt.errorbar(x, y, xerr=x_uncertainty, yerr=y_uncertainty,
+                     marker='.', markerfacecolor='red', markersize=6,
+                     linestyle='none', capsize=0, elinewidth=0.2)
+        #plt.plot([0, 1], [0, 1], transform=plt.transAxes)
+        plt.axline((0, 0), slope=1) # identity line for reference
         plt.savefig(self.results_ID_directory + name + '.png', bbox_inches="tight", dpi=600, format='png')

@@ -91,20 +91,20 @@ class Sklearn:
 
             self.dataIO.WriteLog( str( HGS.best_estimator_ ).split( '(' )[0] ) #write model name in log file
             self.dataIO.WriteLog( str( HGS.best_params_ ) ) #write best hyper-parameters in log file
-            
+
             params = self.dataIO.ParseParameters( HGS.best_params_ )
-            
+
             if self.classification_or_regression == 'classification':
                 model = MultiOutputClassifier( model, n_jobs = -1 ).set_params(**params)
-            
+
             elif self.classification_or_regression == 'regression':
                 model = MultiOutputRegressor( model, n_jobs = -1 ).set_params(**params)
             else:
                 sys.exit('Wrong classification_or_regression input')
-            
+
             model.fit( x_train, y_train )
             y_pred = model.predict( x_test )
-        
+
         self.dataIO.Metrics( y_test, y_pred, str( HGS.best_estimator_ ).split( '(' )[0] )
         
         #self.dataIO.SaveModel(final_model, str( HGS.best_estimator_ ).split( '(' )[0])
@@ -121,6 +121,7 @@ class Sklearn:
 
         if self.classification_or_regression == 'classification':
             
+            """
             self.GridSearch(LogisticRegression(), 
                               {'penalty':['l2','l1'],
                                'tol':[0.001, 0.01, 0.05],
@@ -128,10 +129,6 @@ class Sklearn:
                                'class_weight':['balanced'],
                                'solver':['liblinear'],
                                'max_iter':[20,50,100,500,1000,3000]} )
-            
-            ############################ aqui
-            quit()
-            ############################ aqui
             
             self.GridSearch(LogisticRegression(), 
                               {'penalty':['l1','l2','none','elasticnet'],
@@ -141,8 +138,7 @@ class Sklearn:
                                'solver':['saga'],
                                'max_iter':[20,50,100,500,1000,3000],
                                'multi_class':['ovr','multinomial'],
-                               'l1_ratio':[0.2,0.5,0.7]}, 
-                              multioutput_ensemble = self.multioutput )
+                               'l1_ratio':[0.2,0.5,0.7]} )
             
             self.GridSearch(LogisticRegression(), 
                               {'penalty':['l2','none'],
@@ -151,8 +147,7 @@ class Sklearn:
                                'class_weight':['balanced'],
                                'solver':['newton-cg','lbfgs','sag'],
                                'max_iter':[20,50,100,500,1000,3000],
-                               'multi_class':['ovr','multinomial']},
-                              multioutput_ensemble = self.multioutput )
+                               'multi_class':['ovr','multinomial']} )
             
             self.GridSearch(KNN(), 
                              {'n_neighbors':[2,4,7,10],
@@ -171,12 +166,23 @@ class Sklearn:
                                'class_weight':['balanced'], 
                                'multi_class':['ovr'], 
                                'l1_ratios':[0.2,0.5,0.7]})
+            """
+            self.GridSearch(LogisticRegressionCV(),
+                              {'Cs':[1,5,10,20], 
+                               'dual':[False], 
+                               'penalty':['l2','l1','none'], 
+                               'solver':['liblinear','saga'], 
+                               'tol':[0.001, 0.01, 0.1], 
+                               'max_iter':[100,200,500], 
+                               'class_weight':['balanced'], 
+                               'multi_class':['ovr'], 
+                               'l1_ratios':[0.2,0.5,0.7]})
             
             self.GridSearch(LogisticRegressionCV(),
                               {'Cs':[1,5,10,20], 
                                'dual':[False], 
-                               'penalty':['l2','l1'], 
-                               'solver':['liblinear','sag','saga'], 
+                               'penalty':['l2','none'], 
+                               'solver':['sag'], 
                                'tol':[0.001, 0.01, 0.1], 
                                'max_iter':[100,200,500], 
                                'class_weight':['balanced'], 
@@ -240,10 +246,6 @@ class Sklearn:
 
             self.GridSearch(LinearRegression(),
                               {'fit_intercept':[True]})
-            
-            ###########################################
-            quit()
-            ###########################################
 
             self.GridSearch(PLSRegression(), 
                               {'n_components':[5,10,20,100],
@@ -466,7 +468,55 @@ class LGBM:
     
 #################################################################################################################################
 """
-import os
+import torch
+import optuna
+
+class ANN:
+
+    def __init__(self, phenotype, classification_or_regression):
+
+        self.phenotype = phenotype
+        self.classification_or_regression = classification_or_regression
+
+        self.dataIO = DataIO( self.phenotype, self.classification_or_regression )
+        
+        x_train, y_train, x_test, y_test, labelize = self.dataIO.GetTrainingData('data.joblib',labelize=True,splitTrainTest=0.2)
+        
+        best_config = self.GridSearch(x_train, y_train, x_test, y_test)
+        
+        x_train, y_train, labelize = self.dataIO.GetTrainingData('data.joblib')
+        
+        final_model = self.FinalModel(best_config, x_train, y_train)
+        
+        #self.dataIO.SaveModel(final_model, 'lgbm')
+
+    def GridSearch(self, x_train, y_train, x_test, y_test):
+        pass
+
+    # 1. Define an objective function to be maximized.
+    def objective(trial):
+
+        # 2. Suggest values of the hyperparameters using a trial object.
+        n_layers = trial.suggest_int('n_layers', 1, 3)
+        layers = []
+
+        in_features = 28 * 28
+        for i in range(n_layers):
+            out_features = trial.suggest_int(f'n_units_l{i}', 4, 128)
+            layers.append(torch.nn.Linear(in_features, out_features))
+            layers.append(torch.nn.ReLU())
+            in_features = out_features
+        layers.append(torch.nn.Linear(in_features, 10))
+        layers.append(torch.nn.LogSoftmax(dim=1))
+        model = torch.nn.Sequential(*layers).to(torch.device('gpu'))
+        return accuracy
+
+    # 3. Create a study object and optimize the objective function.
+    study = optuna.create_study(direction='maximize')
+    study.optimize(objective, n_trials=100)
+"""
+
+"""
 import tensorflow as tf
 from tensorflow.data import Dataset
 from tensorflow import keras

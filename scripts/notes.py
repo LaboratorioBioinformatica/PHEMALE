@@ -61,21 +61,6 @@ def ChosenModels():
 
     Log('Weighted')
     Log( regression_report(y_test, yTestPred) )
-    
-Não funciona:
-
-self.GridSearch(NuSVC(), 
-{'nu':[0.02,0.05,0.1,0.2],
-'kernel':['linear','poly','rbf','sigmoid'],
-'degree':[1,2,3,4,5,6,7,8,9],
-'coef0':[0.0, 0.01, 0.1, 1.0],
-'tol':[0.001, 0.01, 0.1],
-'cache_size':[200000]} )
-
-self.GridSearch(RidgeClassifierCV(),
-{'normalize':[True, False],
-'class_weight':['balanced'],
-'alphas':[0.2,0.5,1.,2.,5.,10.]})
 
 
 Métricas de regressao
