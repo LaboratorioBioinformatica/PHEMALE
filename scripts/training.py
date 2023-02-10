@@ -165,7 +165,11 @@ class Sklearn:
                                'class_weight':['balanced'], 
                                'multi_class':['ovr'], 
                                'l1_ratios':[0.2,0.5,0.7]})
+<<<<<<< HEAD
             
+=======
+
+>>>>>>> b17d59e18d3be5947d2977478b910871adcc0169
             self.GridSearch(LogisticRegressionCV(),
                               {'Cs':[1,5,10,20], 
                                'dual':[False], 

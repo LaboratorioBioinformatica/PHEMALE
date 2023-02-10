@@ -1,14 +1,11 @@
 #!/bin/bash
-#PBS -N phemale-ph
+#PBS -N phemale
 #PBS -j oe
 #PBS -S /bin/bash
-#PBS -l nodes=1:ppn=80,walltime=240:00:00,vmem=1000gb
+#PBS -l nodes=1:ppn=80,walltime=240:00:00,vmem=280gb
 #PBS -m n
 #PBS -d /work/phenotyprediction/data/phemale
-#PBS -o /work/phenotyprediction/data/phemale/ph.out
 #PBS -W group_list=phenotyprediction
 #PBS -V
 
-export EGGNOG_DATA_DIR=/work/phenotyprediction/data/data/databases
-PATH=eggnog-mapper:/work/phenotyprediction/data/phemale/eggnog-mapper/eggnogmapper/bin:"$PATH"
-python3 main.py 50
+python3 main.py
