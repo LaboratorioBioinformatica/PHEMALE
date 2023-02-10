@@ -17,7 +17,7 @@ phenotype = ['pathways',       #0
 pathway_specification = ['nitrogen_fixation',
                          'nitrate_reduction',
                          'fermentation',
-                         'sulfate_reduction'][1]
+                         'sulfate_reduction'][4]
 
 #if it's a classification/label or regression task
 classification_or_regression = ['classification','regression'][1]
