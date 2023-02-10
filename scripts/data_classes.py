@@ -326,8 +326,9 @@ class MountDataset:
                     pearson_files.append( (file2, file) )
                 files.append( file )
         
-        min_pearson_indexes = np.argsort(pearson_values)[:round(n_files/2)]
-        files = np.unique( np.delete( np.array(pearson_files), min_pearson_indexes) )[:n_files]
+        if len(files) > 1:
+            min_pearson_indexes = numpy.argsort(pearson_values)[n_files:]
+            files = numpy.unique( numpy.delete( numpy.array(pearson_files), min_pearson_indexes) )[:n_files]
         
         return files
     
@@ -383,7 +384,7 @@ class MountDataset:
             append = [ row.phenotype1 , row.phenotype2 ]
         
         if self.phenotype == 'optimum_ph':
-            #append = [ 10**(8-row.phenotype1) , 10**(8-row.phenotype2) ]
+            #append = [ 10**(8-row.phenotype1) , 10**(8-row.phenotype2) ] #other scale option for pH
             append = [ (10**3)*(2**(-row.phenotype1)) , (10**3)*(2**(-row.phenotype2)) ]
         elif self.phenotype == 'range_tmp':
             append = [ row.phenotype1 , row.phenotype2 , row.phenotype3 ]
@@ -396,7 +397,7 @@ class MountDataset:
         return genome, metadatum
     
     @jit
-    def MountDataset(self, madin, redundancy_threshold = False, minimal_correlation = True, max_files_per_species = 3 ):
+    def MountDataset(self, madin, redundancy_threshold = False, maximum_diversity = True, max_files_per_species = 3 ):
         
         data = []
         metadata = self.GenerateMetadataHeader()
@@ -407,9 +408,8 @@ class MountDataset:
             
             if os.path.isdir(folder):
                 
-                if minimal_correlation == True:
-                    files = self.SelectFromFolderByMinPearson(folder, max_files_per_species)
-                    for file in files:
+                if maximum_diversity == True:
+                    for file in self.SelectFromFolderByMinPearson( folder, max_files_per_species ):
                         genome, metadatum = self.GenerateDatum( file, row )
                         data.append( genome )
                         metadata.append( metadatum )
@@ -438,7 +438,7 @@ class MountDataset:
             file.write('Number of orders: ' + str(len(order)) + '\n')
             file.write('Number of families: ' + str(families) + '\n')
             file.write('Number of genus: ' + str(genus) + '\n')
-            file.write('Number of species: ' + str(species))
+            file.write('Number of species: ' + str(species) + '\n')
             file.write('Number of OGs: ' + str(self.number_of_OG_columns))
             
         colors = random.choices( list(mcolors.CSS4_COLORS.values()) , k = len(order) )
@@ -457,12 +457,12 @@ class MountDataset:
         """
         data, metadata = self.MountDataset( self.madin, 
                                            redundancy_threshold = self.CalculatePearsonThreshold(), 
-                                           minimal_correlation = False, 
+                                           maximum_diversity = False, 
                                            max_files_per_species = 3 )
         """
         data, metadata = self.MountDataset( self.madin, 
                                            redundancy_threshold = False, 
-                                           minimal_correlation = True, 
+                                           maximum_diversity = True, 
                                            max_files_per_species = 2 )
         
         dump( metadata, phenotype_folder + 'metadata.joblib' )
@@ -524,10 +524,13 @@ class DataIO:
         x = numpy.asarray( x, dtype=numpy.float16)
         x = numpy.nan_to_num(x, nan=0)
 
-        if labelize == True:
+        if self.classification_or_regression == 'classification' and labelize == True:
             labelize = MultiLabelBinarizer()
             y = [[i] for i in y]
             y = labelize.fit_transform(y)
+        
+        elif self.classification_or_regression == 'regression':
+            y = numpy.asarray( y, dtype=numpy.float16)
 
         if splitTrainTest != False:
             x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=splitTrainTest)
@@ -631,7 +634,6 @@ class DataIO:
             r2_lower = r2_score(y_test_lower, y_pred_lower)
             r2_higher = r2_score(y_test_higher, y_pred_higher)
 
-            #if r2_lower > 0.8 and r2_higher > 0.8:
             self.WriteLog( 'Number of values not pedicted: ' + str(number_of_not_predicted))
             self.WriteLog( 'R2 score of lower values: %.2f' % r2_lower )
             self.WriteLog( 'R2 score of higher values: %.2f' % r2_higher )

@@ -36,7 +36,7 @@ from scripts.data_classes import CollectData, TransformData, MountDataset
 
 #CollectData( phenotype, n_cpus, specific_pathway = pathway_specification )
 #TransformData( phenotype, ortholog_groups_DB = curated_or_hypothetical )
-#MountDataset( phenotype )
+MountDataset( phenotype )
 
 ################################################################################
 

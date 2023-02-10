@@ -121,7 +121,6 @@ class Sklearn:
 
         if self.classification_or_regression == 'classification':
             
-            """
             self.GridSearch(LogisticRegression(), 
                               {'penalty':['l2','l1'],
                                'tol':[0.001, 0.01, 0.05],
@@ -166,7 +165,7 @@ class Sklearn:
                                'class_weight':['balanced'], 
                                'multi_class':['ovr'], 
                                'l1_ratios':[0.2,0.5,0.7]})
-            """
+            
             self.GridSearch(LogisticRegressionCV(),
                               {'Cs':[1,5,10,20], 
                                'dual':[False], 
@@ -244,42 +243,21 @@ class Sklearn:
     
         elif self.classification_or_regression == 'regression':
 
+            
             self.GridSearch(LinearRegression(),
                               {'fit_intercept':[True]})
-
+            
             self.GridSearch(PLSRegression(), 
                               {'n_components':[5,10,20,100],
                                'max_iter':[100,500,2000],
                                'tol':[0.01,0.1,0.5]})
             
-            self.GridSearch(RandomForestRegressor(), 
-                              {'n_estimators':[100,300,500,700,1000,5000,10000], 
-                               'max_depth':[None,10,50,100,300],
-                               'max_features':['auto','sqrt','log2'],
-                               'bootstrap':['False','True'],
-                               'ccp_alpha':[0.0,0.003,0.005,0.01,0.02,0.03,0.05,0.1,0.15,0.2]})
-
             self.GridSearch(KNeighborsRegressor(),
                               {'n_neighbors':[2,5], 
                                'weights':['uniform','distance'], 
                                'algorithm':['ball_tree','kd_tree','brute'], 
                                'leaf_size':[50,100,1000,10000]})
             
-            self.GridSearch(SGDRegressor(), 
-                              {'loss':['squared_error','huber','epsilon_insensitive','squared_epsilon_insensitive'], 
-                               'penalty':['l1','l2','elasticnet'], 
-                               'alpha':[1.0e-3,0.2,1.0,5.0],
-                               'l1_ratio':[0,0.01,0.1,0.5,1.0],
-                               'fit_intercept':[True,False],
-                               'max_iter':[200,500,2000],
-                               'tol':[0.01,0.1,0.5],
-                               'early_stopping':[True],
-                               'validation_fraction':[0.2],
-                               'eta0':[0.01,0.1,0.5],
-                               'epsilon':[0.1,0.5,1.0],
-                               'learning_rate':['optimal','adaptative'],
-                               'power_t':[0.1,0.25,0.5,1.0,2.0]})
-
             self.GridSearch(LassoLars(), 
                               {'alpha':[1.0,3.0,5.0,10.0],
                                'max_iter':[200,500,2000], 
@@ -287,37 +265,6 @@ class Sklearn:
                                'fit_path':[False],
                                'jitter':[None,0.1,0.5,1.0],
                                'positive':[False,True]})
-
-            self.GridSearch(ARDRegression(),
-                              {'tol':[0.01,0.1,0.5],
-                               'n_iter':[200,500,2000], 
-                               'alpha_1':[1.0,0.1,1e-06],
-                               'alpha_2':[1.0,1.0e-3,1e-06],
-                               'lambda_1':[1.0,0.1,1e-06],
-                               'lambda_2':[1.0,0.1,1e-06],
-                               'compute_score':[True,False],
-                               'fit_intercept':[True],
-                               'normalize':[True,False],
-                               'threshold_lambda':[10,100.0,1000.0,10000.0]})
-
-            self.GridSearch(Lars(), 
-                              {'n_nonzero_coefs':[numpy.inf,1000,10000],
-                               'eps':[2.2e-16,0.1,1.0],
-                               'fit_path':[False],
-                               'jitter':[None,0.1,0.5,1.0]})
-            
-            self.GridSearch(BayesianRidge(), 
-                              {'tol':[0.01,0.1,0.5],
-                               'n_iter':[200,500,2000], 
-                               'alpha_1':[1.0,1.0e-2,1e-06],
-                               'alpha_2':[1.0,1.0e-3,1e-06],
-                               'lambda_1':[1.0,1.0e-2,1e-06],
-                               'lambda_2':[1.0,1.0e-2,1e-06],
-                               'alpha_init':[1.0,1.0e-2,1e-06],
-                               'lambda_init':[1.0,1.0e-2,1e-06],
-                               'compute_score':[True,False],
-                               'fit_intercept':[True],
-                               'normalize':[True,False]})
             
             self.GridSearch(OrthogonalMatchingPursuit(), 
                               {'tol':[0.01,0.1,1.0]})
@@ -341,7 +288,7 @@ class Sklearn:
                                'max_iter':[200,500,2000],
                                'tol':[0.01,0.1,1.0],
                                'positive':[False,True]})
-
+            
             self.GridSearch(ElasticNet(), 
                               {'alpha':[1.0,3.0,5.0,10.0],
                                'l1_ratio':[0.2,0.5,0.8],
@@ -349,6 +296,7 @@ class Sklearn:
                                'tol':[0.01,0.1,1.0],
                                'positive':[False,True]})
 
+            
             self.GridSearch(AdaBoostRegressor(), 
                               {'n_estimators':[20,50,100,500],
                                'learning_rate':[0.01,0.1,0.5],
@@ -387,6 +335,63 @@ class Sklearn:
                                'degree':[2,3,4,5,6,7],
                                'gamma':[0,1.0e-4,0.3,1.0,5.0],
                                'coef0':[0.0,0.03,0.1,1.0]})
+            
+            self.GridSearch(RandomForestRegressor(), 
+                              {'n_estimators':[100,300,500,700,1000,5000,10000], 
+                               'max_depth':[None,10,50,100,200],
+                               'max_features':['auto','sqrt','log2'],
+                               'bootstrap':['False','True'],
+                               'ccp_alpha':[0.0,0.003,0.005,0.01,0.03,0.05,0.1,0.2]})
+            
+            """
+            # removed due to being too slow (+744 hours of training and no convergence)
+            self.GridSearch(SGDRegressor(), 
+                              {'loss':['squared_error','huber','epsilon_insensitive','squared_epsilon_insensitive'], 
+                               'penalty':['l1','l2','elasticnet'], 
+                               'alpha':[1.0e-3,0.1,0.5,1.0],
+                               'l1_ratio':[0,0.3,1.0],
+                               'fit_intercept':[True,False],
+                               'max_iter':[500,1000],
+                               'tol':[0.2,0.5,1.0,2.0],
+                               'early_stopping':[True],
+                               'validation_fraction':[0.2],
+                               'eta0':[0.02,0.5],
+                               'epsilon':[0.1,0.5,1.0],
+                               'learning_rate':['optimal','adaptative']})
+                               
+            # needs lots of memory for training +800gb
+            self.GridSearch(ARDRegression(),
+                              {'tol':[0.01,0.1,0.5],
+                               'n_iter':[200,500,2000], 
+                               'alpha_1':[1.0,0.1,1e-06],
+                               'alpha_2':[1.0,1.0e-3,1e-06],
+                               'lambda_1':[1.0,0.1,1e-06],
+                               'lambda_2':[1.0,0.1,1e-06],
+                               'compute_score':[True,False],
+                               'fit_intercept':[True],
+                               'threshold_lambda':[10,100.0,1000.0,10000.0]})
+                               
+            # needs lots of memory for training +800gb
+            self.GridSearch(Lars(), 
+                              {'n_nonzero_coefs':[numpy.inf,1000,10000],
+                               'eps':[2.2e-16,0.1,1.0],
+                               'fit_path':[False],
+                               'jitter':[None,0.1,0.5,1.0]})
+            
+            # needs lots of memory for training +800gb                   
+            self.GridSearch(BayesianRidge(), 
+                              {'tol':[0.01,0.1,0.5],
+                               'n_iter':[200,500,2000], 
+                               'alpha_1':[1.0,1.0e-2,1e-06],
+                               'alpha_2':[1.0,1.0e-3,1e-06],
+                               'lambda_1':[1.0,1.0e-2,1e-06],
+                               'lambda_2':[1.0,1.0e-2,1e-06],
+                               'alpha_init':[1.0,1.0e-2,1e-06],
+                               'lambda_init':[1.0,1.0e-2,1e-06],
+                               'compute_score':[True,False],
+                               'fit_intercept':[True],
+                               'normalize':[True,False]})
+            """
 
     def __init__(self, phenotype, classification_or_regression, multioutput = False):
         
