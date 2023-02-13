@@ -115,7 +115,7 @@ class CollectData:
     Function: Gets file with information of bacterias with complete genomes in NCBI server.
     """
     def ParseNCBI(self):
-        os.system('wget --tries=20 --quiet -P ' + self.data_folder +
+        os.system('wget --tries=40 --quiet -P ' + self.data_folder +
                       ' https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt')
         ncbi = open( self.data_folder + 'assembly_summary.txt','r').readlines()
         del ncbi[0] # remove first comment line
@@ -136,6 +136,10 @@ class CollectData:
                 n_jobs - number of CPU cores dedicated to eggnog-mapper
     """
     def RunEggNOG(self, file, n_jobs):
+        
+        if os.path.isdir( './eggnog-mapper/temp' ) == False:
+            os.mkdir( './eggnog-mapper/temp' )
+        
         os.system('./eggnog-mapper/emapper.py -i ' + file + '_genomic.fna --itype genome --genepred prodigal -o '+ file + 
                   ' --cpu ' + str(n_jobs) + ' --tax_scope Bacteria --tax_scope_mode inner_broadest --temp_dir ./eggnog-mapper/temp --override')
 
@@ -178,7 +182,7 @@ class CollectData:
         
         self.data_folder = './results/'
         
-        # creates results folder
+        # creates output folder
         if os.path.isdir( self.data_folder + phenotype + '/data' ) == False:
             os.makedirs( self.data_folder + phenotype + '/data' )
         
@@ -219,19 +223,19 @@ class TransformData:
     @jit
     def TransformEVALUE(self, evalue):
 
-        maxValue = 1.0
-        middle = 20.0
-        curve = middle/3
-        threshold = 10**(-6)
+        maxValue = numpy.float16(1.0)
+        middle = numpy.float16(20.0)
+        curve = numpy.float16(middle/3)
+        threshold = numpy.float16(10**(-6))
         
         if evalue > threshold:
-            return 0
+            return numpy.float16(0)
         elif evalue == 0:
             return maxValue
         else:
             evalue = -numpy.log10( float(evalue) )
             evalue = (evalue-middle)/curve
-            return round( (maxValue / (1 + numpy.exp(-evalue))), 2 )
+            return numpy.float16( round( ( maxValue / (1 + numpy.exp(-evalue)) ), 2 ) )
     
     #Parameters 
     #ortholog_groups_DB: 1 or 2; 1 for curated groups (COG and COG+); 2 for hypothetical groups (COG, COG+ and EGGNOG);
@@ -243,7 +247,7 @@ class TransformData:
         
             try:
                 OG = row.eggNOG_OGs.split(',')[ortholog_groups_DB].split('@')[0]
-                transformedEvalue = self.TransformEVALUE(float(row.evalue))
+                transformedEvalue = self.TransformEVALUE( numpy.float16(row.evalue) )
 
                 try:
                     index = self.OG_columns.index(OG)
@@ -255,7 +259,6 @@ class TransformData:
             
             except IndexError:
                 continue
-        
             except AttributeError:
                 continue
 
