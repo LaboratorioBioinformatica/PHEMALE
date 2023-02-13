@@ -163,17 +163,18 @@ class CollectData:
                 for idx_madin_ncbi, row_madin_ncbi in madin_ncbi.iterrows():
                     accession = row_madin_ncbi.ftp_path.split('/',9)[-1]
                     
-                    if os.path.isfile( folder + accession + '.emapper.annotations') == True:
-                        continue #if eggnog-mapper file already exists skip
-                    else:
+                    if os.path.isfile( folder + accession + '.emapper.annotations') == False:
                         self.DownloadData( row_madin_ncbi.ftp_path+'/'+accession+'_genomic.fna.gz', folder, accession)
                         self.RunEggNOG( folder + accession, n_jobs)
+                    
+                    elif os.path.isfile( folder + accession + '_genomic.fna') == False:
+                        self.DownloadData( row_madin_ncbi.ftp_path+'/'+accession+'_genomic.fna.gz', folder, accession)
                 
                 for file in os.listdir( folder ):
-                    if file.endswith('.emapper.annotations') == False and file.endswith('.joblib') == False:
+                    if file.endswith('.emapper.annotations') == False and file.endswith('.joblib') == False and file.endswith('.fna') == False:
                         os.system('rm -r ' + folder + file)
     
-    def __init__(self, phenotype, n_jobs, specific_pathway = False):
+    def __init__(self, phenotype, n_jobs, specific_pathway = False, number_genomes_per_species = 2):
         
         self.data_folder = './results/'
         
@@ -183,9 +184,6 @@ class CollectData:
         
         madin = self.ParseMadin( phenotype, specific_pathway )
         ncbi = self.ParseNCBI()
-
-        # maximum number of genomes collected per species
-        number_genomes_per_species = 3
         
         self.CreateDatabase( madin, ncbi, number_genomes_per_species, n_jobs )
 
@@ -332,8 +330,11 @@ class MountDataset:
         
         return files
     
+    """
+    Estimate mean Pearson score by species
+    """
     @jit
-    def CalculatePearsonThreshold(self):
+    def PearsonThreshold(self):
         pearsons = []
 
         for idx, row in self.madin.iterrows():
@@ -396,8 +397,13 @@ class MountDataset:
         
         return genome, metadatum
     
+    """
+    Two modes: 
+        1 - get only n files with higher diversity within species folder
+        2 - get only files below estimated redundancy threshold
+    """
     @jit
-    def MountDataset(self, madin, redundancy_threshold = False, maximum_diversity = True, max_files_per_species = 3 ):
+    def MountDataset(self, madin, maximum_diversity = True, max_files_per_species ):
         
         data = []
         metadata = self.GenerateMetadataHeader()
@@ -412,17 +418,16 @@ class MountDataset:
                         metadata.append( metadatum )
                 
         else:
-            redundancy_threshold = self.CalculatePearsonThreshold()
-
+            redundancy_threshold = self.PearsonThreshold()
             for idx, row in madin.iterrows():
                 folder = '../data/genomes/'+str(row['taxid'])+'/'
+                n_specimens = 0
                 if os.path.isdir(folder):
                     for file in os.listdir(folder):
-                        n_files_species = 0
                         if file.endswith( '.annotations' + self.phenotype + '.joblib' ):
                             genome, metadatum = self.GenerateDatum( folder + file, row )
-                            if (redundancy_threshold != False and self.CheckRedundancy( genome, data, redundancy_threshold ) == True) == True or redundancy_threshold == False and n_files_species < max_files_per_species:
-                                n_files_species = n_files_species + 1
+                            if self.CheckRedundancy( genome, data, redundancy_threshold ) == True and n_specimens < max_files_per_species:
+                                n_specimens = n_specimens + 1
                                 data.append( genome )
                                 metadata.append( metadatum )
 
@@ -448,7 +453,7 @@ class MountDataset:
         orderGraph.legend(loc="right", bbox_to_anchor=(3.0,0.5), fontsize=8, ncol=4)
         orderGraph.figure.savefig(saveFolder + 'order.png', bbox_inches="tight", dpi=800)
             
-    def __init__(self, phenotype):
+    def __init__(self, phenotype, specimens_per_species = 2):
         
         self.phenotype = phenotype
         phenotype_folder = './results/'+phenotype+'/data/'
@@ -456,14 +461,7 @@ class MountDataset:
         self.madin = pandas.read_csv( phenotype_folder+'madin_'+self.phenotype+'.csv')
         self.number_of_OG_columns = len( load(phenotype_folder+'OGColumns.joblib') )
 
-        """
-        data, metadata = self.MountDataset( self.madin, 
-                                           maximum_diversity = False, 
-                                           max_files_per_species = 3 )
-        """
-        data, metadata = self.MountDataset( self.madin, 
-                                           maximum_diversity = True, 
-                                           max_files_per_species = 2 )
+        data, metadata = self.MountDataset( self.madin, max_files_per_species = specimens_per_species )
         
         dump( metadata, phenotype_folder + 'metadata.joblib' )
         dump( data, phenotype_folder + 'data.joblib' )
