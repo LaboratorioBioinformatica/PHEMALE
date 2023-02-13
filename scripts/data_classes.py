@@ -402,19 +402,21 @@ class MountDataset:
         data = []
         metadata = self.GenerateMetadataHeader()
         
-        for idx, row in madin.iterrows():
-            
-            folder = '../data/genomes/'+str(row['taxid'])+'/'
-            
-            if os.path.isdir(folder):
-                
-                if maximum_diversity == True:
+        if maximum_diversity == True:
+            for idx, row in madin.iterrows():
+                folder = '../data/genomes/'+str(row['taxid'])+'/'
+                if os.path.isdir(folder):
                     for file in self.SelectFromFolderByMinPearson( folder, max_files_per_species ):
                         genome, metadatum = self.GenerateDatum( file, row )
                         data.append( genome )
                         metadata.append( metadatum )
                 
-                else:
+        else:
+            redundancy_threshold = self.CalculatePearsonThreshold()
+
+            for idx, row in madin.iterrows():
+                folder = '../data/genomes/'+str(row['taxid'])+'/'
+                if os.path.isdir(folder):
                     for file in os.listdir(folder):
                         n_files_species = 0
                         if file.endswith( '.annotations' + self.phenotype + '.joblib' ):
@@ -456,12 +458,10 @@ class MountDataset:
 
         """
         data, metadata = self.MountDataset( self.madin, 
-                                           redundancy_threshold = self.CalculatePearsonThreshold(), 
                                            maximum_diversity = False, 
                                            max_files_per_species = 3 )
         """
         data, metadata = self.MountDataset( self.madin, 
-                                           redundancy_threshold = False, 
                                            maximum_diversity = True, 
                                            max_files_per_species = 2 )
         
