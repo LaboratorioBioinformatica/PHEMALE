@@ -171,7 +171,7 @@ class CollectData:
                         self.DownloadData( row_madin_ncbi.ftp_path+'/'+accession+'_genomic.fna.gz', folder, accession)
                         self.RunEggNOG( folder + accession, n_jobs)
                     
-                    elif os.path.isfile( folder + accession + '_genomic.fna') == False:
+                    if os.path.isfile( folder + accession + '_genomic.fna') == False:
                         self.DownloadData( row_madin_ncbi.ftp_path+'/'+accession+'_genomic.fna.gz', folder, accession)
                 
                 for file in os.listdir( folder ):
@@ -406,7 +406,7 @@ class MountDataset:
         2 - get only files below estimated redundancy threshold
     """
     @jit
-    def MountDataset(self, madin, maximum_diversity = True, max_files_per_species ):
+    def MountDataset(self, madin, maximum_diversity = True, max_files_per_species = 2 ):
         
         data = []
         metadata = self.GenerateMetadataHeader()

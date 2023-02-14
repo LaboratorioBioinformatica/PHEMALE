@@ -12,7 +12,7 @@ phenotype = ['pathways',       #0
              'range_salinity', #2
              'optimum_tmp',    #3
              'optimum_ph',     #4
-             'sporulation'][3]
+             'sporulation'][4]
 
 pathway_specification = ['nitrogen_fixation',
                          'nitrate_reduction',
