@@ -527,7 +527,9 @@ def parse_args(parser):
         sys.exit(0)
 
     if args.cpu == 0:
-        args.cpu = multiprocessing.cpu_count()
+        #edited per recommendation of https://github.com/eggnogdb/eggnog-mapper/issues/406
+        args.cpu = len(os.sched_getaffinity(0))
+        #args.cpu = multiprocessing.cpu_count()
     multiprocessing.set_start_method(args.mp_start_method)
 
     if args.resume == True and args.override == True:

@@ -1,16 +1,14 @@
 import os
-import sys
 from numba import jit
 import pandas
 pandas.options.display.max_colwidth = 2000  #higher data threshold limit for pandas
-import warnings
-warnings.filterwarnings('ignore')
+from warnings import filterwarnings
+filterwarnings('ignore')
 
 """
 Class: collecting and organizing training data.
 Observations: data from different phenotypes must be treated differently in the ParseMadin() method.
 Parameters: phenotype - phenotype of interest
-            n_jobs - number of CPU cores to use with eggnog-mapper
 """
 class CollectData:
 
@@ -21,22 +19,20 @@ class CollectData:
                 file - genome fasta file name
     """
     def DownloadData(self, downloadpath, savefolder, file):
-        
         try:
             os.system('wget -q -P ' + savefolder + ' ' + downloadpath)
-            os.system('gzip -d ' + savefolder + '/' + file + '_genomic.fna.gz')
-        
+            os.system('gzip -d ' + savefolder + file)
         except:
             DownloadData(downloadpath, savefolder, file)
-
+            
     """
     Function: parse the file of bacteria phenotypes from the Madin et al. study
     Observations: data from Madin is manipulated to better adapt for multiclasses/multilabels
     Parameters: phenotype - phenotype of interest
-                pathway - if phenotype of interest is 'pathway' this parameter is to speficy which pathway
+                pathway - if phenotype of interest is 'pathway' this parameter is to specify which is the pathway of interest
     """
-    def ParseMadin(self, phenotype, specific_pathway ):
-
+    @jit
+    def ParseMadin(self, phenotype ):
         os.system('wget --tries=20 --quiet -P ' + self.data_folder + ' https://raw.githubusercontent.com/bacteria-archaea-traits/bacteria-archaea-traits/master/output/condensed_species_NCBI.csv')
         madin = pandas.read_csv( self.data_folder + 'condensed_species_NCBI.csv', sep=',')
         os.system('rm -r ' + self.data_folder + 'condensed_species_NCBI.csv')
@@ -44,24 +40,31 @@ class CollectData:
         madin = madin[madin.superkingdom != 'Archaea'] # remove archaea
         madin.rename(columns = {'species_tax_id':'taxid'}, inplace = True) # renames column
         madin.rename(columns = {'class':'classes'}, inplace = True) # renames column
-        madin = madin.dropna(subset=[phenotype]) # drops lines with no information about the phenotype of interest
-        madin.rename(columns = {phenotype:'phenotype1'}, inplace = True) # renames column
         
-        # if phenotype is numeric
-        if phenotype == 'optimum_tmp' or phenotype == 'optimum_ph':
+        if phenotype in ['nitrogen_fixation','nitrate_reduction','fermentation','sulfate_reduction']:
+            madin = madin.dropna(subset=['pathways']) # drops lines with no information about the phenotype of interest
+            madin.rename(columns = {'pathways':'phenotype1'}, inplace = True) # renames column
+        else:
+            madin = madin.dropna(subset=[phenotype]) # drops lines with no information about the phenotype of interest
+            madin.rename(columns = {phenotype:'phenotype1'}, inplace = True) # renames column
+        
+        if phenotype == 'optimum_tmp':
+            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].replace( 0.0, 3.0)
+            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].fillna(3.0)
+            madin['phenotype2'] = madin['phenotype1'].add(madin[phenotype+'.stdev']) #phenotype2 = higher value = mean + stdev
+            madin['phenotype1'] = madin['phenotype1'].sub(madin[phenotype+'.stdev']) # phenotype1 = lower value = mean - stdev
 
-            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].replace( 0.0, 0.5)
-            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].fillna(0.5)
-            madin['phenotype2'] = madin['phenotype1'].add(madin[phenotype+'.stdev']) # phenotype2 = Higher numerical value = mean + stdev
-            madin['phenotype1'] = madin['phenotype1'].sub(madin[phenotype+'.stdev']) # phenotype1 = Lower numerical value = mean - stdev
+        elif phenotype == 'optimum_ph':
+            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].replace( 0, 1.5)
+            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].fillna(1.5)
+            madin['phenotype2'] = madin['phenotype1'].sub(madin[phenotype+'.stdev']) # phenotype2 = higher value = mean + stdev
+            madin['phenotype1'] = madin['phenotype1'].add(madin[phenotype+'.stdev']) # phenotype1 = lower value = mean - stdev
         
         elif phenotype == 'range_salinity':
-
             # phenotype1 = halophilic
             madin['phenotype2'] = 'no' # phenotype2 = non-halophilic
-
             for idx, row in madin.iterrows():
-                if row.phenotype1 == 'extreme-halophilic' or row.phenotype1 == 'moderate-halophilic' or row.phenotype1 == 'halophilic':
+                if row.phenotype1=='extreme-halophilic' or row.phenotype1=='moderate-halophilic' or row.phenotype1=='halophilic':
                     madin['phenotype1'][idx] = 'yes'
                     madin['phenotype2'][idx] = 'no'
                 elif row.phenotype1 == 'non-halophilic':
@@ -71,20 +74,17 @@ class CollectData:
                     madin['phenotype1'][idx] = 'yes'
                     madin['phenotype2'][idx] = 'yes'
 
-        elif phenotype == 'pathways':
+        elif phenotype in ['nitrogen_fixation','nitrate_reduction','fermentation','sulfate_reduction']:
             for idx, row in madin.iterrows():
-                if specific_pathway in row.phenotype1:
+                if phenotype in row.phenotype1:
                     madin['phenotype1'][idx] = 'yes'
                 else:
                     madin['phenotype1'][idx] = 'no'
                     
         elif phenotype == 'range_tmp':
-
             # phenotype1 = mesophilic
-            # phenotype2 = psychrophilic
-            madin['phenotype2'] = 'no'
-            # phenotype3 = thermophilic
-            madin['phenotype3'] = 'no'
+            madin['phenotype2'] = 'no' # phenotype2 = psychrophilic
+            madin['phenotype3'] = 'no' # phenotype3 = thermophilic
 
             for idx, row in madin.iterrows():
                 if row.phenotype1 == 'mesophilic':
@@ -114,9 +114,10 @@ class CollectData:
     """
     Function: Gets file with information of bacterias with complete genomes in NCBI server.
     """
+    @jit
     def ParseNCBI(self):
-        os.system('wget --tries=40 --quiet -P ' + self.data_folder +
-                      ' https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt')
+        os.system('wget --tries=40 --quiet -P ' + self.data_folder + 
+                  ' https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt')
         ncbi = open( self.data_folder + 'assembly_summary.txt','r').readlines()
         del ncbi[0] # remove first comment line
         ncbi[0] = ncbi[0][2:] # remove comment characters
@@ -127,106 +128,211 @@ class CollectData:
         ncbi = ncbi[ncbi.assembly_level != 'Scaffold'] # removes scaffold level of completeness
         ncbi = ncbi[['assembly_accession','assembly_level','taxid','organism_name','ftp_path']]
         os.system('rm -r ' + self.data_folder + 'assembly_summary.txt')
-        
         return ncbi
-    
-    """
-    Function: Runs eggnog-mapper on genome fasta file using prodigal
-    Parameters: file - genome fasta file
-                n_jobs - number of CPU cores dedicated to eggnog-mapper
-    """
-    def RunEggNOG(self, file, n_jobs):
-        
-        if os.path.isdir( './eggnog-mapper/temp' ) == False:
-            os.mkdir( './eggnog-mapper/temp' )
-        
-        os.system('./eggnog-mapper/emapper.py -i ' + file + '_genomic.fna --itype genome --genepred prodigal -o '+ file + 
-                  ' --cpu ' + str(n_jobs) + ' --tax_scope Bacteria --tax_scope_mode inner_broadest --temp_dir ./eggnog-mapper/temp --override')
 
     """
-    Function: 
     Parameters: madin - 
                 ncbi - file with information of bacterias genomes in NCBI server
                 number_genomes_per_species - maximum number of genomes collected per species
-                n_jobs - number of CPU cores to use with eggnog-mapper
     """
-    def CreateDatabase(self, madin, ncbi, number_genomes_per_species, n_jobs):
-    
+    @jit
+    def CreateGenomeDatabase(self, madin, ncbi, number_genomes_per_species):        
         for idx_madin, row_madin in madin.iterrows():
-
             madin_ncbi = ncbi.loc[ncbi.taxid == str( row_madin.taxid )]
-            madin_ncbi = madin_ncbi[:number_genomes_per_species]
-
-            if len(madin_ncbi.index) > 0: # check if dataframe is not empty
-                
+            madin_ncbi = madin_ncbi[:number_genomes_per_species]            
+            if len(madin_ncbi) > 0: # check if dataframe is not empty
                 folder = '../data/genomes/'+str(row_madin.taxid)+'/'
-
                 if os.path.isdir( folder ) == False:
                     os.mkdir( folder )
-                
                 for idx_madin_ncbi, row_madin_ncbi in madin_ncbi.iterrows():
-                    accession = row_madin_ncbi.ftp_path.split('/',9)[-1]
-                    
-                    if os.path.isfile( folder + accession + '.emapper.annotations') == False:
-                        self.DownloadData( row_madin_ncbi.ftp_path+'/'+accession+'_genomic.fna.gz', folder, accession)
-                        self.RunEggNOG( folder + accession, n_jobs)
-                    
-                    if os.path.isfile( folder + accession + '_genomic.fna') == False:
-                        self.DownloadData( row_madin_ncbi.ftp_path+'/'+accession+'_genomic.fna.gz', folder, accession)
-                
-                for file in os.listdir( folder ):
-                    if file.endswith('.emapper.annotations') == False and file.endswith('.joblib') == False and file.endswith('.fna') == False:
-                        os.system('rm -r ' + folder + file)
-    
-    def __init__(self, phenotype, n_jobs, specific_pathway = False, number_genomes_per_species = 2):
-        
+                    file = row_madin_ncbi.ftp_path.split('/',9)[-1] + '_genomic.fna'
+                    if os.path.isfile( folder + file ) == False:
+                        file = file + '.gz'
+                        self.DownloadData( row_madin_ncbi.ftp_path+'/'+file, folder, file)
+
+    def __init__(self, phenotype, number_genomes_per_species = 5):
         self.data_folder = './results/'
-        
-        # creates output folder
         if os.path.isdir( self.data_folder + phenotype + '/data' ) == False:
             os.makedirs( self.data_folder + phenotype + '/data' )
-        
-        madin = self.ParseMadin( phenotype, specific_pathway )
-        ncbi = self.ParseNCBI()
-        
-        self.CreateDatabase( madin, ncbi, number_genomes_per_species, n_jobs )
-
-        print('Downloaded raw dataset')
+        madin = self.ParseMadin( phenotype )
+        if os.path.isfile( self.data_folder + phenotype + '/data/madin_'+phenotype+'_append.csv' ) == True:
+            madin_append = pandas.read_csv( self.data_folder + phenotype + '/data/madin_'+phenotype+'_append.csv')
+            madin = pandas.concat([madin, madin_append])
+        ncbi = self.ParseNCBI()        
+        self.CreateGenomeDatabase( madin, ncbi, number_genomes_per_species )
+        print('Downloaded genomes database')
         
 #####################################################################################################################
 
 from joblib import load, dump
+from heapq import nsmallest
+import glob
+import random
+import matplotlib.colors as mcolors
+
+class SelectData:
+    """
+    Function: calculates ANI between file1 and file2 with FastANI
+    file1: genome file (.fna)
+    file2: genome file (.fna)
+    """
+    def ANI(self, file1, file2):
+        n_cpus = len(os.sched_getaffinity(0))
+        os.system('./FastANI/fastANI -q ' + file1 + ' -r '+ file2 + ' -t ' + str(n_cpus) + ' -o ./FastANI/ani_'+self.phenotype+'.out')
+        if os.stat('./FastANI/ani_'+self.phenotype+'.out').st_size != 0:
+            ani = open( './FastANI/ani_'+self.phenotype+'.out','r').read()
+            return float(ani.split()[2])
+        else:
+            return float(0.5)
+
+    """
+    Function: generate metadata of a specific genome file or generate metadata header if no parameters is passed
+    filepath: genome file
+    metadatum: row from a pandas dataframe with informations on class, order, family, genus and species
+    """
+    def GenerateMetadata( self, filepath = False, metadatum = False):
+        if filepath == False and metadatum == False: #generates header
+            metadata = ['file', 'class', 'order', 'family', 'genus', 'species']
+            append = ['phenotype1']
+            if self.phenotype in ['range_salinity','optimum_tmp','optimum_ph']:
+                append = append + ['phenotype2']
+            elif self.phenotype == 'range_tmp':
+                append = append + ['phenotype2','phenotype3']
+            
+        else: #generates metadata of file
+            metadata = [filepath, metadatum.classes, metadatum.order, metadatum.family, metadatum.genus, metadatum.species]
+            append = [metadatum.phenotype1]
+            if self.phenotype in ['range_salinity','optimum_tmp','optimum_ph']:
+                append = append + [metadatum.phenotype2]
+            elif self.phenotype in ['range_tmp']:
+                append = append + [metadatum.phenotype2, metadatum.phenotype3]
+
+        return metadata + append
+    
+    """
+    Function: selects n_files .fna files with highest diversity (lowest ANI scores) inside specific folder
+    folder: folder of genome .fna files
+    n_files: max number of files requested per folder
+    """
+    def FilesWithLowestANIByFolder(self, folder, n_files):
+        files = []
+        ANI_values = []
+        ANI_files = []
+        
+        for file1 in os.listdir(folder):
+            if file1.endswith( '.fna' ):
+                file1 = folder + file1
+                for file2 in files:
+                    ANI_values.append( self.ANI( file1, file2 ) )
+                    ANI_files.append( (file1, file2) )
+                files.append( file1 )
+        
+        if len(ANI_values) > 0:
+            ANI_values, ANI_files = ( list(t) for t in zip(*sorted(zip(ANI_values, ANI_files))) )
+            ANI_files = dict.fromkeys(ANI_files[:n_files])
+            files = [item for sublist in ANI_files for item in sublist][:n_files]
+            
+        return files
+    
+    """
+    Function: generates metadata for training containing
+    max_files_per_species: max number of files requested per folder
+    """
+    def MountDataset(self, max_files_per_species):
+        
+        metadata = [ self.GenerateMetadata() ]
+        for idx, row in self.madin.iterrows():
+            folder = '../data/genomes/'+str(row['taxid'])+'/'
+            if (os.path.isdir(folder)) and (len(os.listdir(folder)) > 0):
+                files = self.FilesWithLowestANIByFolder( folder, max_files_per_species )
+                for file in files:
+                    metadata.append( self.GenerateMetadata( filepath = file, metadatum = row ) )
+        return metadata
+          
+    def Taxonomy(self, metadata, savefolder):
+        
+        metadata = pandas.DataFrame(data=metadata[1:], columns=metadata[0])
+        order = metadata.order.value_counts().rename_axis('data').reset_index(name='counts')
+        families = len( metadata.family.value_counts().rename_axis('data').reset_index(name='counts') )
+        genus = len( metadata.genus.value_counts().rename_axis('data').reset_index(name='counts') )
+        species = len( metadata.species.value_counts().rename_axis('data').reset_index(name='counts') )
+        specimens = len( metadata )
+                          
+        with open(savefolder+'metametadata.log', 'w') as file:
+            file.write('Number of orders: ' + str(len(order)) + '\n')
+            file.write('Number of families: ' + str(families) + '\n')
+            file.write('Number of genus: ' + str(genus) + '\n')
+            file.write('Number of species: ' + str(species) + '\n')
+            file.write('Number of specimens: ' + str(specimens) + '\n')
+
+        colors = random.choices( list(mcolors.CSS4_COLORS.values()) , k = len(order) )
+        orderGraph = order.plot(y='counts', kind='pie', figsize=(5, 5), labels = order.data, labeldistance=None, colors=colors)
+        orderGraph.legend(loc="right", bbox_to_anchor=(3.0,0.5), fontsize=8, ncol=4)
+        orderGraph.figure.savefig(savefolder + 'order.png', bbox_inches="tight", dpi=800)
+        
+    def __init__(self, phenotype, specimens_per_species = 2):
+        
+        self.phenotype = phenotype
+        phenotype_folder = './results/'+phenotype+'/data/'
+        self.madin = pandas.read_csv( phenotype_folder+'madin_'+self.phenotype+'.csv')
+        if os.path.isfile( phenotype_folder + 'madin_'+self.phenotype+'_append.csv' ) == True:
+            madin_append = pandas.read_csv( phenotype_folder + 'madin_'+self.phenotype+'_append.csv')
+            self.madin = pandas.concat([self.madin, madin_append])
+        metadata = self.MountDataset( max_files_per_species = specimens_per_species )
+        dump( metadata, phenotype_folder + 'metadata.joblib' )
+        self.Taxonomy(metadata, phenotype_folder )
+        print('Selected data and metadata saved in directory: ' + phenotype_folder)
+        
+#####################################################################################################################
+
+import csv
+from random import sample
 import numpy
 numpy.seterr(divide = 'ignore')
 
-class TransformData:
+class MountData:
 
-    def ParseEggNOGFile(self, file):
+    def RunEggNOG(self, file):
+        if os.path.isdir( './eggnog-mapper/temp' ) == False:
+            os.mkdir( './eggnog-mapper/temp' )
         
-        with open(file) as annotations:
-            try:
-                annotations = [line.rstrip() for line in annotations]
-                annotations = [component.split("\t") for component in annotations]
-                del annotations[0:4]                                     # deletando as 4 linhas do início
-                del annotations[ len(annotations)-3 : len(annotations) ] # deletando as 3 linhas do fim
-                annotations = pandas.DataFrame(data=annotations[1:], columns=annotations[0])
-                return annotations
-            except UnicodeDecodeError:
-                self.problems = True
-                os.system('rm ' + file)
-            except IndexError:
-                self.problems = True
-                os.system('rm ' + file)
-        return [0]
-    
-    #values suggested by https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3820096/
+        """
+        --sensmode DIAMOND_SENS_MODE
+            default, fast, mid-sensitive, sensitive, more-sensitive, very-sensitive or ultra-sensitive. 
+            Default of eggnog is sensitive. 
+            Default of diamond is a little faster than mid-sensitive.
+            More information in https://media.springernature.com/full/springer-static/image/art%3A10.1038%2Fs41592-021-01101-x/MediaObjects/41592_2021_1101_Fig1_HTML.png
+        --index_chunks C
+            The number of chunks for processing the seed index. This option can be used to tune the performance. 
+            The default value is 4. Setting this parameter to 1 will improve the performance at the cost of increased memory use.
+        --block_size B
+            Block size in billions of sequence letters to be processed at a time. 
+            This is the main parameter for controlling the program’s memory and disk space usage. 
+            Bigger numbers will increase the use of memory and temporary disk space, but also improve performance. 
+            The program can be expected to use roughly x6 this number of memory (in GB).
+            The default value is 2.0. The parameter can be decreased for reducing memory use, as well as increased 
+            for better performance (values of >20 are not recommended).
+        The memory needed is roughly 20*B/C.
+        """
+        n_cpus = str(len(os.sched_getaffinity(0)))
+        os.system('./eggnog-mapper/emapper.py -i '+ file + ' --itype genome --genepred prodigal -o ' + file + 
+                  ' --cpu ' + n_cpus + ' --tax_scope 2 --tax_scope_mode broadest --override --no_file_comments '+
+                  '--temp_dir ./eggnog-mapper/temp --dmnd_db ../data/databases/bacteria.dmnd --data_dir ../data/databases '+
+                  '--dmnd_iterate yes --index_chunks 1 --block_size 0.4 --sensmode very-sensitive --target_orthologs one2one '+
+                  '--outfmt_short')
+        
+        os.system('rm ' + file + '.emapper.genepred.fasta')
+        os.system('rm ' + file + '.emapper.genepred.gff')
+        os.system('rm ' + file + '.emapper.hits')
+        os.system('rm ' + file + '.emapper.seed_orthologs')
+
     @jit
     def TransformEVALUE(self, evalue):
 
         maxValue = numpy.float16(1.0)
-        middle = numpy.float16(20.0)
+        threshold = numpy.float16(10**(-5))
+        middle = numpy.float16(15.0)
         curve = numpy.float16(middle/3)
-        threshold = numpy.float16(10**(-6))
         
         if evalue > threshold:
             return numpy.float16(0)
@@ -235,243 +341,68 @@ class TransformData:
         else:
             evalue = -numpy.log10( float(evalue) )
             evalue = (evalue-middle)/curve
-            return numpy.float16( round( ( maxValue / (1 + numpy.exp(-evalue)) ), 2 ) )
+            return numpy.float16( round( ( maxValue / (1 + numpy.exp(-evalue))), 2) )
     
-    #Parameters 
-    #ortholog_groups_DB: 1 or 2; 1 for curated groups (COG and COG+); 2 for hypothetical groups (COG, COG+ and EGGNOG);
-    def TransformEggNOGFile(self, annotation, ortholog_groups_DB):
-        
+    #Transform the eggnog file into a vector for machine learning
+    def TransformFile(self, file, only_COGs):
+
+        if os.path.isfile( file + '.emapper.annotations' ) == False:
+            self.RunEggNOG(file)
+
+        annotation = list( csv.reader(open(file + '.emapper.annotations'), delimiter='\t') )
         genome = [0]*len(self.OG_columns)
         
-        for idx, row in annotation.iterrows():
-        
-            try:
-                OG = row.eggNOG_OGs.split(',')[ortholog_groups_DB].split('@')[0]
-                transformedEvalue = self.TransformEVALUE( numpy.float16(row.evalue) )
-
+        for row in annotation[1:]:
+            OG = row[4].split(',')[0].split('@')[0]
+            if (only_COGs == True and 'COG' in OG) or only_COGs == False:
+                transformedEvalue = self.TransformEVALUE( numpy.float16(row[2]) )
                 try:
                     index = self.OG_columns.index(OG)
                     genome[index] = genome[index] + transformedEvalue
-
                 except ValueError:
                     self.OG_columns.append(OG)
-                    genome.append( transformedEvalue )
-            
-            except IndexError:
-                continue
-            except AttributeError:
-                continue
+                    genome.append(transformedEvalue)
+        dump( genome, file + '.' + self.phenotype + '.joblib' )
 
-        return genome
-
-    def __init__(self, phenotype, ortholog_groups_DB = 1 ):
+    def GenerateDatum( self, metadatum ):
         
-        self.problems = False
-        self.OG_columns = []
-        self.ortholog_groups_DB = ortholog_groups_DB
-        
-        madin = pandas.read_csv('./results/'+phenotype+'/data/'+'madin_'+phenotype+'.csv')
-        
-        for idx in madin.index:
-            
-            folder = '../data/genomes/'+str(madin['taxid'][idx])+'/'
-            
-            if os.path.isdir(folder):
-                for eggnog_file in os.listdir(folder):
-                    if eggnog_file.endswith('.annotations'):
-                        annotation = self.ParseEggNOGFile( folder + eggnog_file )
-                        if self.problems == False:
-                            genome = self.TransformEggNOGFile( annotation, self.ortholog_groups_DB )
-                            dump( genome, folder + eggnog_file + phenotype + '.joblib' )
-
-        if self.problems == False:
-            dump( self.OG_columns, './results/'+phenotype+'/data/OGColumns.joblib')
-            print('Processed data')
-        else:
-            sys.exit('Error found and corrected on data collection. Run program again.')
-
-#####################################################################################################################
-
-import statistics
-from scipy.stats import pearsonr
-import math
-import matplotlib.colors as mcolors
-import random
-
-class MountDataset:
-
-    @jit
-    def CheckRedundancy(self, datum, data, threshold):
-        if len(data) != 0:
-            for i in data:
-                if i[self.number_of_OG_columns:] == datum[self.number_of_OG_columns:]:
-                    if pearsonr( i[:self.number_of_OG_columns] , datum[:self.number_of_OG_columns] )[0] > threshold:
-                        return False
-        return True
-    
-    @jit
-    def SelectFromFolderByMinPearson(self, folder, n_files):
-        files = []
-        pearson_values = []
-        pearson_files = []
-
-        for file in os.listdir(folder):
-            if file.endswith( '.annotations' + self.phenotype + '.joblib' ):
-                file = folder + file
-                genome = load( file )
-                genome = genome + [0]*( self.number_of_OG_columns - len( genome ))
-                for file2 in files:
-                    genome2 = load( file2 )
-                    genome2 = genome2 + [0]*( self.number_of_OG_columns - len( genome2 ))
-                    pearson_values.append( pearsonr( genome , genome2 )[0] )
-                    pearson_files.append( (file2, file) )
-                files.append( file )
-        
-        if len(files) > 1:
-            min_pearson_indexes = numpy.argsort(pearson_values)[n_files:]
-            files = numpy.unique( numpy.delete( numpy.array(pearson_files), min_pearson_indexes) )[:n_files]
-        
-        return files
-    
-    """
-    Estimate mean Pearson score by species
-    """
-    @jit
-    def PearsonThreshold(self):
-        pearsons = []
-
-        for idx, row in self.madin.iterrows():
-            pearson = []
-            files = []
-            folder = '../data/genomes/'+str(row['taxid'])+'/'
-
-            if os.path.isdir(folder):
-                for file in os.listdir(folder):
-                    if file.endswith( '.annotations' + self.phenotype + '.joblib' ):
-                        file = load( folder+file )
-                        file = file + [0]*( self.number_of_OG_columns - len( file ))
-                        if len(files) > 0:
-                            for i in files:
-                                pearson.append( pearsonr( i , file )[0] )
-                        files.append( file )
-
-            if len(pearson) > 1:
-                pearsons.append(statistics.mean(pearson))
-            if len(pearson) == 1:
-                pearsons.append(pearson[0])
-
-        return math.ceil( statistics.mean(pearsons)*100 )/100
-    
-    def GenerateMetadataHeader( self ):
-        
-        metadata = [['genome', 'class', 'order', 'family', 'genus', 'species']]
-        
-        if self.phenotype == 'range_salinity' or self.phenotype == 'optimum_ph':
-            metadata[0] = metadata[0] + ['phenotype1','phenotype2']
-        elif self.phenotype == 'range_tmp':
-            metadata[0] = metadata[0] + ['phenotype1','phenotype2','phenotype3']
-        elif self.phenotype == 'pathways' or self.phenotype == 'motility':
-            metadata[0] = metadata[0] + ['phenotype1']
-            
-        return metadata
-    
-    @jit
-    def GenerateDatum( self, file, row ):
-        
-        genome = load( file )
-        genome = genome + [0]*( self.number_of_OG_columns - len( genome ))
-        
-        metadatum = [file, row.classes, row.order, row.family, row.genus, row.species]
-        
+        genome = load( metadatum[0] +'.'+ self.phenotype + '.joblib')
+        genome = genome + [0]*( len(self.OG_columns) - len( genome ))
         append = None
+        
         if self.phenotype == 'range_salinity' or self.phenotype == 'optimum_tmp':
-            append = [ row.phenotype1 , row.phenotype2 ]
-        
-        if self.phenotype == 'optimum_ph':
-            #append = [ 10**(8-row.phenotype1) , 10**(8-row.phenotype2) ] #other scale option for pH
-            append = [ (10**3)*(2**(-row.phenotype1)) , (10**3)*(2**(-row.phenotype2)) ]
+            append = [ metadatum[-2] , metadatum[-1] ]
+        elif self.phenotype == 'optimum_ph':
+            append = [ (10**4)*(2**(-metadatum[-2])) , (10**4)*(2**(-metadatum[-1])) ]
+            #append = [ (10**(14-metadatum[-2])) , (10**(14-metadatum[-1])) ]
         elif self.phenotype == 'range_tmp':
-            append = [ row.phenotype1 , row.phenotype2 , row.phenotype3 ]
+            append = [ metadatum[-3] , metadatum[-2] , metadatum[-1] ]
         else:
-            append = [ row.phenotype1 ]
-        
-        genome = genome + append
-        metadatum = metadatum + append
-        
-        return genome, metadatum
+            append = [ metadatum[-1] ]        
+        return genome + append
     
-    """
-    Two modes: 
-        1 - get only n files with higher diversity within species folder
-        2 - get only files below estimated redundancy threshold
-    """
-    @jit
-    def MountDataset(self, madin, maximum_diversity = True, max_files_per_species = 2 ):
+    def __init__(self, phenotype, only_COGs = True, sampling = 1.0 ):
+
+        self.OG_columns = []
+        self.phenotype = phenotype
+        metadata = load('./results/'+phenotype+'/data/metadata.joblib')
+        metadata = metadata[1:]
+        
+        for file in metadata:
+            genome = self.TransformFile( file[0], only_COGs )
+
+        dump( self.OG_columns, './results/' + phenotype + '/data/OGColumns.joblib')
+        
+        with open('./results/' + phenotype + '/data/metametadata.log', 'a') as file:
+            file.write('Number of OGs: ' + str(len(self.OG_columns)))
         
         data = []
-        metadata = self.GenerateMetadataHeader()
+        for metadatum in sample( metadata, int(sampling*len(metadata)) ):
+            data.append( self.GenerateDatum( metadatum ) )
+        dump( data, './results/' + phenotype + '/data/data.joblib')
         
-        if maximum_diversity == True:
-            for idx, row in madin.iterrows():
-                folder = '../data/genomes/'+str(row['taxid'])+'/'
-                if os.path.isdir(folder):
-                    for file in self.SelectFromFolderByMinPearson( folder, max_files_per_species ):
-                        genome, metadatum = self.GenerateDatum( file, row )
-                        data.append( genome )
-                        metadata.append( metadatum )
-                
-        else:
-            redundancy_threshold = self.PearsonThreshold()
-            for idx, row in madin.iterrows():
-                folder = '../data/genomes/'+str(row['taxid'])+'/'
-                n_specimens = 0
-                if os.path.isdir(folder):
-                    for file in os.listdir(folder):
-                        if file.endswith( '.annotations' + self.phenotype + '.joblib' ):
-                            genome, metadatum = self.GenerateDatum( folder + file, row )
-                            if self.CheckRedundancy( genome, data, redundancy_threshold ) == True and n_specimens < max_files_per_species:
-                                n_specimens = n_specimens + 1
-                                data.append( genome )
-                                metadata.append( metadatum )
+        print('Mounted data for training with onlyCOGs set to '+str(only_COGs))
 
-        return data, metadata
-    
-    def Taxonomy(self, metadata, saveFolder):
-        
-        metadata = pandas.DataFrame(data=metadata[1:], columns=metadata[0])
-        order = metadata.order.value_counts().rename_axis('data').reset_index(name='counts')
-        families = len( metadata.family.value_counts().rename_axis('data').reset_index(name='counts') )
-        genus = len( metadata.genus.value_counts().rename_axis('data').reset_index(name='counts') )
-        species = len( metadata.species.value_counts().rename_axis('data').reset_index(name='counts') )
-                          
-        with open(saveFolder+'metametadata.log', 'w') as file:
-            file.write('Number of orders: ' + str(len(order)) + '\n')
-            file.write('Number of families: ' + str(families) + '\n')
-            file.write('Number of genus: ' + str(genus) + '\n')
-            file.write('Number of species: ' + str(species) + '\n')
-            file.write('Number of OGs: ' + str(self.number_of_OG_columns))
-            
-        colors = random.choices( list(mcolors.CSS4_COLORS.values()) , k = len(order) )
-        orderGraph = order.plot(y='counts', kind='pie', figsize=(5, 5), labels = order.data, labeldistance=None, colors=colors)
-        orderGraph.legend(loc="right", bbox_to_anchor=(3.0,0.5), fontsize=8, ncol=4)
-        orderGraph.figure.savefig(saveFolder + 'order.png', bbox_inches="tight", dpi=800)
-            
-    def __init__(self, phenotype, specimens_per_species = 2):
-        
-        self.phenotype = phenotype
-        phenotype_folder = './results/'+phenotype+'/data/'
-        
-        self.madin = pandas.read_csv( phenotype_folder+'madin_'+self.phenotype+'.csv')
-        self.number_of_OG_columns = len( load(phenotype_folder+'OGColumns.joblib') )
-
-        data, metadata = self.MountDataset( self.madin, max_files_per_species = specimens_per_species )
-        
-        dump( metadata, phenotype_folder + 'metadata.joblib' )
-        dump( data, phenotype_folder + 'data.joblib' )
-        self.Taxonomy(metadata, phenotype_folder )
-        
-        print('Dataset & metadata constructed in directory: ' + phenotype_folder)
-        
 #####################################################################################################################
 
 from datetime import date, datetime
@@ -479,6 +410,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.metrics import mean_absolute_error, mean_squared_error, max_error, median_absolute_error, r2_score, explained_variance_score, multilabel_confusion_matrix, confusion_matrix, classification_report
 import matplotlib.pyplot as plt
+import sys
 
 """
 Class: input and output of data
@@ -490,7 +422,6 @@ class DataIO:
     def __init__(self, phenotype, classification_or_regression):
         
         self.startTime = datetime.now()
-        
         self.phenotype = phenotype
         self.phenotype_directory = './results/'+phenotype+'/data/'
         
@@ -531,7 +462,7 @@ class DataIO:
             y = labelize.fit_transform(y)
         
         elif self.classification_or_regression == 'regression':
-            y = numpy.asarray( y, dtype=numpy.float16)
+            y = numpy.asarray( y )
 
         if splitTrainTest != False:
             x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=splitTrainTest)
@@ -548,12 +479,11 @@ class DataIO:
     Function transform output to something interpretable to humans
     """
     def YTransform(self, y):
-        #para casos como o PLSRegression que por algum motivo devolve output como uma lista de lista de listas ao invés de apenas uma lsita de listas.
+        #para casos como o PLSRegression que por algum motivo devolve output como uma lista de lista de listas ao invés de apenas uma lista de listas.
         if len(y) == 1:
             y = y[0]
             
         y_relabeled = []
-        
         if self.phenotype == 'range_salinity':
             for i in range(len(y)):
                 if y[i][0] == 'yes' and y[i][1] == 'yes':
@@ -585,11 +515,11 @@ class DataIO:
         elif self.phenotype == 'optimum_ph':
             try:
                 y_relabeled = numpy.asarray([[ -numpy.log2(j/(10**3)) for j in i] for i in y], dtype=numpy.float16)
+                #y_relabeled = numpy.asarray([[ 14-numpy.log10(j) for j in i] for i in y], dtype=numpy.uint64)
             except ValueError:
                 sys.exit('Training went awry. Run program again.')
         else:
             return y
-
         return y_relabeled
 
     def Metrics(self, y_test, y_pred, name):
@@ -599,7 +529,11 @@ class DataIO:
         
         if self.classification_or_regression == 'classification':
         
-            self.WriteLog( multilabel_confusion_matrix( y_test, y_pred ) )
+            if self.phenotype == 'range_tmp' or self.phenotype == 'range_salinity': #multi-label phenotypes
+                self.WriteLog( multilabel_confusion_matrix( y_test, y_pred ) )
+            else:
+                self.WriteLog( confusion_matrix( y_test, y_pred ) )
+                
             self.WriteLog( classification_report( y_test, y_pred ) )
 
             #implementar retorno de alguma métrica (talvez AUC)
@@ -610,13 +544,10 @@ class DataIO:
 
             y_test_lower, y_test_higher = numpy.hsplit(y_test,[1])
             y_pred_lower, y_pred_higher = numpy.hsplit(y_pred,[1])
-            
             y_test_lower = numpy.ravel(y_test_lower)
             y_test_higher = numpy.ravel(y_test_higher)
             y_pred_lower = numpy.ravel(y_pred_lower)
             y_pred_higher = numpy.ravel(y_pred_higher)
-
-            number_of_not_predicted = 0
             
             index_nan = numpy.argwhere( numpy.isnan( y_pred_lower ) )
             number_of_not_predicted = len(index_nan)
@@ -646,7 +577,6 @@ class DataIO:
 
         y_test_lower, y_test_higher = numpy.hsplit(y_test,[1])
         y_pred_lower, y_pred_higher = numpy.hsplit(y_pred,[1])
-        
         y_test_lower = numpy.ravel(y_test_lower)
         y_test_higher = numpy.ravel(y_test_higher)
         y_pred_lower = numpy.ravel(y_pred_lower)
@@ -658,10 +588,8 @@ class DataIO:
         y_uncertainty = [abs(i - j) / 2 for i, j in zip(y_pred_lower, y_pred_higher)]
         
         plt.figure( (datetime.now() - self.startTime).total_seconds() )
-        
         plt.errorbar(x, y, xerr=x_uncertainty, yerr=y_uncertainty,
                      marker='.', markerfacecolor='red', markersize=6,
                      linestyle='none', capsize=0, elinewidth=0.2)
-        #plt.plot([0, 1], [0, 1], transform=plt.transAxes)
         plt.axline((0, 0), slope=1) # identity line for reference
         plt.savefig(self.results_ID_directory + name + '.png', bbox_inches="tight", dpi=600, format='png')
