@@ -1,3 +1,4 @@
+eggnog-mapper/temp
 __pycache__
 cpu.job
 gpu.job
@@ -11,3 +12,5 @@ tarefas.txt
 .ipynb_checkpoints/tests-checkpoint.ipynb
 scripts/notes.py
 main.py
+ANI.py
+ani.out

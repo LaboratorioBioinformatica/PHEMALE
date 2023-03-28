@@ -1,13 +1,12 @@
 #!/bin/bash
-#PBS -N phemale-ph
+#PBS -N phemale-nitrogen
 #PBS -j oe
 #PBS -S /bin/bash
-#PBS -l nodes=1:ppn=20,walltime=240:00:00,vmem=300gb
+#PBS -l nodes=1:ppn=80,walltime=240:00:00,vmem=996gb
 #PBS -m n
 #PBS -d /work/phenotyprediction/brunok/PHEMALE
-#PBS -o /work/phenotyprediction/brunok/PHEMALE/ph.out
+#PBS -o /work/phenotyprediction/brunok/PHEMALE/nitrogen.out
 #PBS -W group_list=phenotyprediction
 #PBS -V
 
-export EGGNOG_DATA_DIR=../data/databases
-python3 main.py 20
+python3 main.py
