@@ -49,14 +49,14 @@ class CollectData:
             madin.rename(columns = {phenotype:'phenotype1'}, inplace = True) # renames column
         
         if phenotype == 'optimum_tmp':
-            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].replace( 0.0, 3.0)
-            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].fillna(3.0)
+            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].replace( 0.0, 2.0)
+            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].fillna(2.0)
             madin['phenotype2'] = madin['phenotype1'].add(madin[phenotype+'.stdev']) #phenotype2 = higher value = mean + stdev
             madin['phenotype1'] = madin['phenotype1'].sub(madin[phenotype+'.stdev']) # phenotype1 = lower value = mean - stdev
 
         elif phenotype == 'optimum_ph':
-            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].replace( 0, 1.5)
-            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].fillna(1.5)
+            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].replace( 0, 0.5)
+            madin[phenotype+'.stdev'] = madin[phenotype+'.stdev'].fillna(0.5)
             madin['phenotype2'] = madin['phenotype1'].sub(madin[phenotype+'.stdev']) # phenotype2 = higher value = mean + stdev
             madin['phenotype1'] = madin['phenotype1'].add(madin[phenotype+'.stdev']) # phenotype1 = lower value = mean - stdev
         
@@ -140,15 +140,17 @@ class CollectData:
         for idx_madin, row_madin in madin.iterrows():
             madin_ncbi = ncbi.loc[ncbi.taxid == str( row_madin.taxid )]
             madin_ncbi = madin_ncbi[:number_genomes_per_species]            
-            if len(madin_ncbi) > 0: # check if dataframe is not empty
+            if len(madin_ncbi) > 0:
                 folder = '../data/genomes/'+str(row_madin.taxid)+'/'
                 if os.path.isdir( folder ) == False:
                     os.mkdir( folder )
-                for idx_madin_ncbi, row_madin_ncbi in madin_ncbi.iterrows():
-                    file = row_madin_ncbi.ftp_path.split('/',9)[-1] + '_genomic.fna'
-                    if os.path.isfile( folder + file ) == False:
-                        file = file + '.gz'
-                        self.DownloadData( row_madin_ncbi.ftp_path+'/'+file, folder, file)
+                    for idx_madin_ncbi, row_madin_ncbi in madin_ncbi.iterrows():
+                        file = row_madin_ncbi.ftp_path.split('/',9)[-1] + '_genomic.fna'
+                        if os.path.isfile( folder + file ) == False:
+                            file = file + '.gz'
+                            self.DownloadData( row_madin_ncbi.ftp_path+'/'+file, folder, file)
+                        else:
+                            phi120 = 0
 
     def __init__(self, phenotype, number_genomes_per_species = 5):
         self.data_folder = './results/'
@@ -229,9 +231,13 @@ class SelectData:
         
         if len(ANI_values) > 0:
             ANI_values, ANI_files = ( list(t) for t in zip(*sorted(zip(ANI_values, ANI_files))) )
-            ANI_files = dict.fromkeys(ANI_files[:n_files])
-            files = [item for sublist in ANI_files for item in sublist][:n_files]
-            
+            ANI_files = [item for sublist in ANI_files for item in sublist]
+            ANI_files = list(dict.fromkeys(ANI_files)) # to remove duplicate instances but maintain order of appearance in list
+            files = ANI_files[:n_files]
+            rejected_files = ANI_files[3:]
+            for rejected in rejected_files:
+                os.system('rm ' + rejected)
+
         return files
     
     """
@@ -239,7 +245,6 @@ class SelectData:
     max_files_per_species: max number of files requested per folder
     """
     def MountDataset(self, max_files_per_species):
-        
         metadata = [ self.GenerateMetadata() ]
         for idx, row in self.madin.iterrows():
             folder = '../data/genomes/'+str(row['taxid'])+'/'
@@ -270,7 +275,7 @@ class SelectData:
         orderGraph.legend(loc="right", bbox_to_anchor=(3.0,0.5), fontsize=8, ncol=4)
         orderGraph.figure.savefig(savefolder + 'order.png', bbox_inches="tight", dpi=800)
         
-    def __init__(self, phenotype, specimens_per_species = 2):
+    def __init__(self, phenotype, specimens_per_species):
         
         self.phenotype = phenotype
         phenotype_folder = './results/'+phenotype+'/data/'
@@ -343,7 +348,7 @@ class MountData:
             evalue = (evalue-middle)/curve
             return numpy.float16( round( ( maxValue / (1 + numpy.exp(-evalue))), 2) )
     
-    #Transform the eggnog file into a vector for machine learning
+    #Transform the eggnog file into a vector with quantities of each ortholog group present in eggnog
     def TransformFile(self, file, only_COGs):
 
         if os.path.isfile( file + '.emapper.annotations' ) == False:
@@ -373,7 +378,7 @@ class MountData:
         if self.phenotype == 'range_salinity' or self.phenotype == 'optimum_tmp':
             append = [ metadatum[-2] , metadatum[-1] ]
         elif self.phenotype == 'optimum_ph':
-            append = [ (10**4)*(2**(-metadatum[-2])) , (10**4)*(2**(-metadatum[-1])) ]
+            append = [ (10**3)*(2**(-metadatum[-2])) , (10**3)*(2**(-metadatum[-1])) ]
             #append = [ (10**(14-metadatum[-2])) , (10**(14-metadatum[-1])) ]
         elif self.phenotype == 'range_tmp':
             append = [ metadatum[-3] , metadatum[-2] , metadatum[-1] ]
@@ -515,7 +520,6 @@ class DataIO:
         elif self.phenotype == 'optimum_ph':
             try:
                 y_relabeled = numpy.asarray([[ -numpy.log2(j/(10**3)) for j in i] for i in y], dtype=numpy.float16)
-                #y_relabeled = numpy.asarray([[ 14-numpy.log10(j) for j in i] for i in y], dtype=numpy.uint64)
             except ValueError:
                 sys.exit('Training went awry. Run program again.')
         else:
@@ -588,8 +592,11 @@ class DataIO:
         y_uncertainty = [abs(i - j) / 2 for i, j in zip(y_pred_lower, y_pred_higher)]
         
         plt.figure( (datetime.now() - self.startTime).total_seconds() )
+        plt.xlabel('True value')
+        plt.ylabel('Predicted value')
         plt.errorbar(x, y, xerr=x_uncertainty, yerr=y_uncertainty,
                      marker='.', markerfacecolor='red', markersize=6,
                      linestyle='none', capsize=0, elinewidth=0.2)
         plt.axline((0, 0), slope=1) # identity line for reference
+        
         plt.savefig(self.results_ID_directory + name + '.png', bbox_inches="tight", dpi=600, format='png')

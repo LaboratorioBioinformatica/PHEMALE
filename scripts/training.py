@@ -170,57 +170,12 @@ class Sklearn:
                           'leaf_size':[50,100,500,1000,10000],
                           'p':[1,2]}, multioutput)
         
-        self.GridSearch(LogisticRegressionCV(),
-                          {'Cs':[1,5,10,20], 
-                           'dual':[False], 
-                           'penalty':['l2'], 
-                           'solver':['newton-cg'], 
-                           'tol':[0.001, 0.01, 0.1], 
-                           'max_iter':[50,100,500,1000,3000],
-                           'class_weight':['balanced'], 
-                           'multi_class':['ovr'], 
-                           'l1_ratios':[0.2,0.5,0.7]}, multioutput)
-
-        self.GridSearch(LogisticRegressionCV(),
-                          {'Cs':[1,5,10,20], 
-                           'dual':[False], 
-                           'penalty':['l2','l1'], 
-                           'solver':['liblinear','saga'], 
-                           'tol':[0.001, 0.01, 0.1], 
-                           'max_iter':[50,100,500,1000,3000],
-                           'class_weight':['balanced'], 
-                           'multi_class':['ovr'], 
-                           'l1_ratios':[0.2,0.5,0.7]}, multioutput)
-        
-        
-        self.GridSearch(LogisticRegressionCV(),
-                          {'Cs':[1,5,10,20], 
-                           'dual':[False], 
-                           'penalty':['l2'], 
-                           'solver':['sag'], 
-                           'tol':[0.001, 0.01, 0.1], 
-                           'max_iter':[50,100,500,1000,3000],
-                           'class_weight':['balanced'], 
-                           'multi_class':['ovr'], 
-                           'l1_ratios':[0.2,0.5,0.7]}, multioutput)
-        
-        self.GridSearch(LogisticRegressionCV(),
-                          {'Cs':[1,5,10,20], 
-                           'dual':[False], 
-                           'penalty':['elasticnet'], 
-                           'solver':['saga'], 
-                           'tol':[0.001, 0.01, 0.1], 
-                           'max_iter':[50,100,500,1000,3000],
-                           'class_weight':['balanced'], 
-                           'multi_class':['ovr'], 
-                           'l1_ratios':[0.2,0.5,0.7]}, multioutput)
-        
         self.GridSearch(RandomForestClassifier(), 
-                          {'n_estimators':[100,300,500,700,1000,5000,10000],
+                          {'n_estimators':[100,300,500,700,1000,2000],
                            'criterion':['gini','entropy'],
                            'oob_score':[True,False],
                            'class_weight':['balanced','balanced_subsample'],
-                           'max_depth':[None,10,50,100,300],
+                           'max_depth':[None,10,50,100,300,500],
                            'max_features':['auto','sqrt','log2'],
                            'bootstrap':['False','True'],
                            'ccp_alpha':[0.0,0.005,0.01,0.03,0.05,0.1,0.2]}, multioutput)
@@ -265,29 +220,22 @@ class Sklearn:
                           {'fit_intercept':[True]}, multioutput)
 
         self.GridSearch(PLSRegression(), 
-                          {'n_components':[5,10,15,20,100,200,500,5000],
+                          {'n_components':[5,10,15,20,100,200,500,5000,10000],
                            'max_iter':[500,1000,3000,5000],
                            'tol':[0.001,0.005,0.01,0.1]}, multioutput)
 
         self.GridSearch(KNeighborsRegressor(),
-                          {'n_neighbors':[2,5], 
+                          {'n_neighbors':[2,5,7,10], 
                            'weights':['uniform','distance'], 
                            'algorithm':['ball_tree','kd_tree','brute'], 
                            'leaf_size':[50,100,1000,10000]}, multioutput)
-
-        self.GridSearch(LassoLars(), 
-                          {'alpha':[1.0,5.0,10.0],
-                           'max_iter':[50,100,500,1000,3000],
-                           'eps':[2.2e-16,0.1,1.0],
-                           'fit_path':[False],
-                           'jitter':[None,0.1,0.5,1.0],
-                           'positive':[False,True]}, multioutput)
-
-        self.GridSearch(Ridge(), 
-                          {'alpha':[0.5,1.0,5.0,10.0,15.0,20.0],
-                           'max_iter':[50,100,500,1000,3000],
-                           'tol':[0.001,0.01,0.1,1.0],
-                           'solver':['svd','cholesky','lsqr','sparse_cg','sag','saga']}, multioutput)
+        
+        self.GridSearch(RandomForestRegressor(), 
+                          {'n_estimators':[100,300,500,700,1000,5000,10000], 
+                           'max_depth':[None,10,50,100,200],
+                           'max_features':['auto','sqrt','log2'],
+                           'bootstrap':['False','True'],
+                           'ccp_alpha':[0.0,0.003,0.005,0.01,0.03,0.05,0.1,0.2]}, multioutput)
 
         self.GridSearch(SVR(), 
                           {'kernel':['linear','poly','rbf','sigmoid'],
@@ -297,6 +245,12 @@ class Sklearn:
                            'tol':[0.001],
                            'cache_size':[200000]}, multioutput)
 
+        self.GridSearch(Ridge(), 
+                          {'alpha':[0.5,1.0,5.0,10.0,15.0,20.0],
+                           'max_iter':[50,100,500,1000,3000],
+                           'tol':[0.001,0.01,0.1,1.0],
+                           'solver':['svd','cholesky','lsqr','sparse_cg','sag','saga']}, multioutput)
+        
         self.GridSearch(Lasso(), 
                           {'alpha':[1,3,5,10],
                            'max_iter':[50,100,500,1000,3000],
@@ -309,7 +263,6 @@ class Sklearn:
                            'max_iter':[50,100,500,1000,3000],
                            'tol':[0.01,0.1,1.0],
                            'positive':[False,True]}, multioutput)
-
 
         self.GridSearch(AdaBoostRegressor(), 
                           {'n_estimators':[20,50,100,500],
@@ -350,67 +303,6 @@ class Sklearn:
                            'gamma':[0,1.0e-4,0.3,1.0,5.0],
                            'coef0':[0.0,0.03,0.1,1.0]}, multioutput)
 
-        self.GridSearch(RandomForestRegressor(), 
-                          {'n_estimators':[100,300,500,700,1000,5000,10000], 
-                           'max_depth':[None,10,50,100,200],
-                           'max_features':['auto','sqrt','log2'],
-                           'bootstrap':['False','True'],
-                           'ccp_alpha':[0.0,0.003,0.005,0.01,0.03,0.05,0.1,0.2]}, multioutput)
-
-        """
-        #shitty
-        self.GridSearch(OrthogonalMatchingPursuit(), 
-                  {'tol':[0.01,0.1,1.0]}, multioutput)
-        
-        # removed due to being too slow (+744 hours of training and no convergence)
-        self.GridSearch(SGDRegressor(), 
-                          {'loss':['squared_error','huber','epsilon_insensitive','squared_epsilon_insensitive'], 
-                           'penalty':['l1','l2','elasticnet'], 
-                           'alpha':[1.0e-3,0.1,0.5,1.0],
-                           'l1_ratio':[0,0.3,1.0],
-                           'fit_intercept':[True,False],
-                           'max_iter':[500,1000],
-                           'tol':[0.2,0.5,1.0,2.0],
-                           'early_stopping':[True],
-                           'validation_fraction':[0.2],
-                           'eta0':[0.02,0.5],
-                           'epsilon':[0.1,0.5,1.0],
-                           'learning_rate':['optimal','adaptative']}, multioutput)
-
-        # needs lots of memory for training +800gb
-        self.GridSearch(ARDRegression(),
-                          {'tol':[0.01,0.1,0.5],
-                           'n_iter':[200,500,2000], 
-                           'alpha_1':[1.0,0.1,1e-06],
-                           'alpha_2':[1.0,1.0e-3,1e-06],
-                           'lambda_1':[1.0,0.1,1e-06],
-                           'lambda_2':[1.0,0.1,1e-06],
-                           'compute_score':[True,False],
-                           'fit_intercept':[True],
-                           'threshold_lambda':[10,100.0,1000.0,10000.0]}, multioutput)
-
-        # needs lots of memory for training +800gb
-        self.GridSearch(Lars(), 
-                          {'n_nonzero_coefs':[numpy.inf,1000,10000],
-                           'eps':[2.2e-16,0.1,1.0],
-                           'fit_path':[False],
-                           'jitter':[None,0.1,0.5,1.0]}, multioutput)
-
-        # needs lots of memory for training +800gb                   
-        self.GridSearch(BayesianRidge(), 
-                          {'tol':[0.01,0.1,0.5],
-                           'n_iter':[200,500,2000], 
-                           'alpha_1':[1.0,1.0e-2,1e-06],
-                           'alpha_2':[1.0,1.0e-3,1e-06],
-                           'lambda_1':[1.0,1.0e-2,1e-06],
-                           'lambda_2':[1.0,1.0e-2,1e-06],
-                           'alpha_init':[1.0,1.0e-2,1e-06],
-                           'lambda_init':[1.0,1.0e-2,1e-06],
-                           'compute_score':[True,False],
-                           'fit_intercept':[True],
-                           'normalize':[True,False]}, multioutput)
-        """
-
     def __init__(self, phenotype):
         
         self.phenotype = phenotype
@@ -445,7 +337,7 @@ class LGBM:
         self.n_jobs = len(sched_getaffinity(0))
         
         x_train, y_train, x_test, y_test, labelize = self.dataIO.GetTrainingData('data.joblib', splitTrainTest = 0.2)
-        best_config = self.GridSearch(x_train, y_train, x_test, y_test)
+        best_config = self.GridSearchSK(x_train, y_train, x_test, y_test)
         x_train, y_train, labelize = self.dataIO.GetTrainingData('data.joblib')
         final_model = self.FinalModel(best_config, x_train, y_train)
         #self.dataIO.SaveModel(final_model, 'lgbm')
@@ -454,16 +346,9 @@ class LGBM:
         
         lgbm = AutoML()
 
-        if self.classification_or_regression == 'classification':
-            metric = 'log_loss'
-            #metric = 'macro_f1'
-        elif self.classification_or_regression == 'regression':
-            metric = 'r2'
-        
         settings = {'time_budget':72*60*60,
                     'task':self.classification_or_regression,
                     'estimator_list':['lgbm'],
-                    'metric':metric,
                     'early_stop':'True'}
 
         y_train = numpy.hsplit(y_train, len(y_train[0]))[0]
