@@ -1,8 +1,0 @@
-Removed Lasso model from training.py
-
-Refactored code for data collection, eggnog, and standardization of data.
-
-Implemented again pearson correlation.
-
-TO DO
-Implement AUC ROC score & graph

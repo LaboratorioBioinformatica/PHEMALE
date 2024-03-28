@@ -6,7 +6,7 @@ import numpy
 from pandas import read_csv
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.metrics import mean_absolute_error, mean_squared_error, max_error, median_absolute_error, r2_score, multilabel_confusion_matrix, confusion_matrix, classification_report, roc_auc_score, roc_curve, RocCurveDisplay
+from sklearn.metrics import mean_absolute_error, mean_squared_error, max_error, median_absolute_error, r2_score, multilabel_confusion_matrix, confusion_matrix, classification_report, roc_auc_score, roc_curve, RocCurveDisplay, precision_recall_curve, auc, PrecisionRecallDisplay
 import matplotlib.pyplot as plt
 
 """
@@ -31,23 +31,33 @@ class IO:
         with open(self.save_folder+'log.txt', 'a+') as file:
             file.write(str(text)+'\n')
 
-    def SaveModel(self, model, file_name):
-        dump(model, self.save_folder + file_name + '.joblib')
+    def Save(self, file, file_name):
+        dump(file, self.save_folder + file_name + '.joblib', compress = 5)
 
     @jit
-    def GetData(self):
+    def GetX(self):
 
         x = load( self.data_folder + 'data.joblib', mmap_mode='r+' )
         x = numpy.asarray( x, dtype=numpy.float16 )
         x = numpy.nan_to_num(x, nan=0)
-        
+
+        return x
+    
+    @jit
+    def GetY(self, processY = False):
+
         y = read_csv(self.data_folder + 'metadata.csv')
-        y = numpy.array(y)[:,6:] # slicing to exclude first 6 columns (files name and taxonomy) and leave only phenotypes
         
+        if processY == True:
+            y = self.ProcessY(y)
+        return y
+        
+    @jit
+    def ProcessY(self,y):
+        y = numpy.array(y)[:,6:] # slicing to exclude first 6 columns (files name and taxonomy) and leave only phenotypes
         if self.phenotype in ['optimum_ph','optimum_tmp']:
             y = numpy.asarray([[j for j in i] for i in y], dtype=numpy.float16)
-
-        return x, y
+        return y
         
     @jit
     def Labelize(self, y):
@@ -59,6 +69,15 @@ class IO:
     @jit
     def SplitData(self, x, y, test_size):
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = test_size)
+        
+        y_files = numpy.array(y_test)[:,:1] # list of genome files
+        self.Save(y_files, 'test_genomes')
+        
+        y_test = self.ProcessY(y_test)
+        y_train = self.ProcessY(y_train)
+        
+        self.Save(y_test, 'test_results')
+        
         return x_train, y_train, x_test, y_test
 
     @jit
@@ -107,6 +126,17 @@ class IO:
                 elif y[i][0] == 'no' and y[i][1] == 'no' and y[i][2] == 'no':
                     y_interpretated.append(['none'])
         
+        elif self.phenotype == 'metabolism':
+            for i in range(len(y)):
+                if y[i][0] == 'yes' and y[i][1] == 'yes':
+                    y_interpretated.append(['facultative of microaerobic'])
+                elif y[i][0] == 'yes' and y[i][1] == 'no':
+                    y_interpretated.append(['aerobic'])
+                elif y[i][0] == 'no' and y[i][1] == 'yes':
+                    y_interpretated.append(['anaerobic'])
+                elif y[i][0] == 'no' and y[i][1] == 'no':
+                    y_interpretated.append(['none'])
+        
         elif self.phenotype == 'optimum_ph':
             y_interpretated = numpy.asarray([[ -numpy.log2(j/(10**3)) for j in i] for i in y], dtype=numpy.float16)
         
@@ -133,29 +163,29 @@ class IO:
         self.ROC(y_true, y_pred_prob, model_name)
 
     def ROC(self, y_true, y_pred_prob, name):
-        
-        print("y_true")
-        print(y_true)
-        y_true = [[0,1] if i[0] == 'yes' else [1,0] for i in y_true]
-        
         if y_pred_prob is None:
             self.WriteLog( "Method doesn't have probability output." )
         else:
-            print("y_true")
-            print(y_true)
-            print("y_pred_prob")
-            y_pred_prob = y_pred_prob[0]
-            print(y_pred_prob)
             for idx in range(0,len(y_true[0])):
-                y_t = [row[idx] for row in y_true]
-                y_p = [row[idx] for row in y_pred_prob]
-                try:
-                    self.WriteLog( 'AUC: ' + str( roc_auc_score(y_t, y_p) ) )
-                    fpr, tpr, _ = roc_curve(y_t, y_p)
-                    roc_display = RocCurveDisplay(fpr = fpr, tpr = tpr).plot()
-                    plt.savefig( self.save_folder + name + str(idx) + '_ROC.png', bbox_inches="tight", dpi=600, format='png' )
-                except ValueError:
-                    self.WriteLog( 'Highly imbalanced results. Not possible to check AUC value.' )
+                
+                y_t = [[0,1] if i[idx] == 'yes' else [1,0] for i in y_true]
+                y_p = y_pred_prob[idx]
+
+                self.WriteLog( 'ROC-AUC: %.2f' % roc_auc_score(y_t, y_p) )
+                
+                y_t = [row[1] for row in y_t]
+                y_p = [row[1] for row in y_p]
+                fpr, tpr, _ = roc_curve(y_t, y_p)
+                plt.figure( str(fpr + tpr) )
+                roc_display = RocCurveDisplay(fpr = fpr, tpr = tpr).plot()
+                plt.savefig( self.save_folder + name + str(idx) + '_ROC.png', bbox_inches="tight", dpi=600, format='png' )
+                
+                precision, recall, _ = precision_recall_curve(y_t, y_p)
+                self.WriteLog( 'Precision-Recall AUC: %.2f' % auc(recall, precision) )
+                self.WriteLog('')
+                plt.figure( str(precision + recall) )
+                pr_display = PrecisionRecallDisplay.from_predictions(y_t, y_p).plot()
+                plt.savefig( self.save_folder + name + str(idx) + '_PR.png', bbox_inches="tight", dpi=600, format='png' )
     
     @jit
     def Split_y_low_high(self, y_true, y_pred):
@@ -194,6 +224,7 @@ class IO:
         self.WriteLog( 'R2 score of higher values: %.2f' % r2_high )
         self.Graph_Identity(y_true_hi, y_pred_hi, y_true_low, y_pred_low, name)
         self.Graph_Error_Hist(y_true_hi, y_pred_hi, y_true_low, y_pred_low, name)
+        self.WriteLog('')
     
     @jit
     def Graph_Identity(self, y_true_hi, y_pred_hi, y_true_lo, y_pred_lo, name):

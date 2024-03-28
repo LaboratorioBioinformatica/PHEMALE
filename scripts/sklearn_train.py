@@ -1,3 +1,6 @@
+#https://medium.com/@ia.bb/bem-vindo-cuml-adeus-scikit-learn-4d3498f5db15
+#https://medium.com/rapids-ai/100x-faster-machine-learning-model-ensembling-with-rapids-cuml-and-scikit-learn-meta-estimators-d869788ee6b1
+
 from os import sched_getaffinity, path
 from joblib import dump, load
 from numba import jit
@@ -41,54 +44,44 @@ class Sklearn:
             shap.summary_plot(shap_values, feature_names=OGs, plot_type='bar', max_display = 10, show=False)
             plt.savefig(self.io.save_folder + self.model_name + str(i) + '_shap.png',dpi=300)
     
-    def Feature_importance_intrinsic(self, model ):
+    def Feature_importance_intrinsic(self, model, n_features = 10 ):
         OGs = load('./results/'+self.phenotype+'/data/OGColumns.joblib')
         
-        feature_importance = pd.DataFrame(index = OGs)
-        
         for idx in range(len(model.estimators_)):
-            feat = None
             try:
-                feat = pd.DataFrame(model.estimators_[idx].feature_importances_, index = OGs, columns=['class_'+str(idx)])
+                feat_importance = pd.DataFrame(model.estimators_[idx].feature_importances_, index=OGs)
             except:
                 try:
                     features = model.estimators_[idx].coef_
-                    if features[0][0][0].ndim == 0:
-                        feat = pd.DataFrame(features[0][0], index = OGs, columns=['class_'+str(idx)])
-                except IndexError:
-                    try: 
-                        if features[0][0].ndim == 0:
-                            feat = pd.DataFrame(features[0], index = OGs, columns=['class_'+str(idx)])
-                    except IndexError:
-                        if features[0].ndim == 0:
-                            feat = pd.DataFrame(features, index = OGs, columns=['class_'+str(idx)])
-                        else:
-                            self.io.WriteLog( 'No intrinsic direct way of infering feature importance in the model.' )
-                            return
-            if feat is not None:
-                feature_importance = pd.concat([feature_importance, feat], axis=1)
+                    if features[0].ndim == 0:
+                        feat_importance = pd.DataFrame(features, index=OGs)
+                    elif features[0][0].ndim == 0:
+                        feat_importance = pd.DataFrame(features[0], index=OGs)
+                    elif features[0][0][0].ndim == 0:
+                        feat_importance = pd.DataFrame(features[0][0], index=OGs)
+                except:
+                    self.io.WriteLog( 'No intrinsic direct way of infering feature importance in the model.\n' )
+                    return
+                        
+            if self.model_name in ['RandomForestClassifier','RandomForestRegressor','BernoulliNB']:
+                feat_importance = feat_importance.loc[~(feat_importance == 0).all(axis=1)]
+                feat_importance = feat_importance.nlargest(n_features,
+                                                                 feat_importance.columns.values.tolist(),
+                                                                 keep='first')
             else:
-                return
-            
-        #if self.phenotype in ['optimum_tmp', 'optimum_ph']:
-        feature_importance = feature_importance.nlargest(10, feature_importance.columns.values.tolist(), keep='all')
-        #else:
-            #feature_importance = feature_importance[feature_importance.apply(lambda row: (abs(row) > 0.1).any(), axis=1)]
+                feat_importance = feat_importance.loc[~(feat_importance == 0).all(axis=1)]
+                feats1 = feat_importance.nlargest(n_features, feat_importance.columns.values.tolist(),keep='all')
+                feats2 = feat_importance.nsmallest(n_features, feat_importance.columns.values.tolist(), keep='all')
+                feat_importance = pd.concat([feats1, feats2], axis=0)
 
-        if feature_importance.empty:
-            self.io.WriteLog( 'No relevant features detected in the model.' )
-        else:
-            plt.figure( str(idx)+'_intrinsic' )
-            feature_importance.plot(kind='bar')
-            plt.tight_layout()
-
-            n = 0
-            fig_name = self.io.save_folder + self.model_name + '_intrinsic.png'
-            while path.isfile(fig_name):
-                n = n + 1
-                fig_name = self.io.save_folder + self.model_name + str(n) + '_intrinsic.png'
-            plt.savefig(fig_name, dpi=300)
-        self.io.WriteLog( '' )
+            if feat_importance.empty:
+                self.io.WriteLog( 'No relevant features detected in the model.\n' )
+            else:
+                fig_name = self.io.save_folder + self.model_name + '_' + str(idx) + '_intrinsic.png'
+                plt.figure( fig_name )
+                feat_importance.plot(kind='bar',legend=False)
+                plt.tight_layout()
+                plt.savefig(fig_name, dpi=300)
 
     """
     Function: Finds optimal hyper-parameters of a sklearn model.
@@ -143,6 +136,8 @@ class Sklearn:
             self.io.Metrics_Classification(self.y_test, y_pred, y_pred_prob, self.model_name)
             
         self.Feature_importance_intrinsic(GScv.best_estimator_)
+        
+        self.io.Save(GScv.best_estimator_, self.model_name)
             
     """
     Function: Implements GridSearch in Sklearn classification models.
@@ -154,15 +149,15 @@ class Sklearn:
     def Exploratory_classification( self ):
 
         self.gridsearch(LogisticRegression(),
-                          {'penalty':['l2','l1'],
+                          {'penalty':['l1'],
                            'tol':[0.001, 0.01, 0.05],
                            'C':[0.1,0.5,1.0,2.0,5.0],
                            'class_weight':['balanced'],
-                           'solver':['liblinear'],
+                           'solver':['liblinear','saga'],
                            'max_iter':[50,100,200,500,1000,2000,5000]})
 
         self.gridsearch(LogisticRegression(), 
-                          {'penalty':['l1','l2','none','elasticnet'],
+                          {'penalty':['elasticnet'],
                            'tol':[0.001, 0.01, 0.05],
                            'C':[0.1,0.5,1.0,2.0,5.0],
                            'class_weight':['balanced'],
@@ -176,7 +171,7 @@ class Sklearn:
                            'tol':[0.001, 0.01, 0.05],
                            'C':[0.1,0.5,1.0,2.0,5.0],
                            'class_weight':['balanced'],
-                           'solver':['newton-cg','lbfgs','sag'],
+                           'solver':['newton-cg','lbfgs','sag','liblinear','saga'],
                            'max_iter':[50,100,500,1000,3000],
                            'multi_class':['ovr','multinomial']})
 
@@ -195,19 +190,18 @@ class Sklearn:
                            'max_depth':[None,10,50,100,300,500],
                            'max_features':['auto','sqrt','log2'],
                            'bootstrap':['False','True'],
-                           'ccp_alpha':[0.0,0.005,0.05,0.1,0.2]})
+                           'ccp_alpha':[0.0,0.01,0.1,1.0]})
 
         self.gridsearch(SVC(), 
                           {'C':[0.2,0.5,1.0,3.0,5.0,10.0],
                            'kernel':['linear','poly','rbf','sigmoid'],
-                           'degree':[1,2,3,4,5,6,7,8,9],
+                           'degree':[1,2,3,4,5],
                            'coef0':[0.0, 0.01, 0.1, 1.0],
                            'tol':[0.001, 0.05],
                            'cache_size':[200000],
                            'class_weight':['balanced'],
                            'shrinking':[True,False],
                            'decision_function_shape':['ovo', 'ovr'],
-                           #'probability':[True, False],
                            'probability':[True]})
 
         self.gridsearch(GaussianProcessClassifier(),
@@ -249,11 +243,11 @@ class Sklearn:
                            'leaf_size':[50,100,1000,10000]})
         
         self.gridsearch(RandomForestRegressor(), 
-                          {'n_estimators':[100,300,500,700,1000,5000,10000], 
+                          {'n_estimators':[100,500,700,1000,5000,10000], 
                            'max_depth':[None,10,50,100,200],
                            'max_features':['auto','sqrt','log2'],
                            'bootstrap':['False','True'],
-                           'ccp_alpha':[0.0,0.005,0.01,0.05,0.1,0.2]})
+                           'ccp_alpha':[0.0,0.01,0.1,0.2]})
 
         self.gridsearch(SVR(), 
                           {'kernel':['linear','poly','rbf','sigmoid'],
@@ -297,8 +291,8 @@ class Sklearn:
 
         self.gridsearch(QuantileRegressor(), 
                           {'fit_intercept':[True],
-                           'quantile':[0.15,0.25,0.5,0.8,0.99], 
-                           'alpha':[0,1.0e-3,0.1,1.0,5.0], 
+                           'quantile':[0.4,0.5,0.6,0], 
+                           'alpha':[0,0.1,1.0,5.0], 
                            'solver':['interior-point','highs-ds','highs-ipm','highs','revised simplex']})
 
         self.gridsearch(TheilSenRegressor(), 
@@ -314,13 +308,6 @@ class Sklearn:
                            'degree':[2,3,4,5,6,7],
                            'gamma':[0,1.0e-4,0.3,1.0,5.0],
                            'coef0':[0.0,0.03,0.1,1.0]})
-
-    def Ensemble_Classifier(self):
-        pass
-    
-    def Ensemble_Regressor(self, models):
-        ensemble = StackingRegressor(estimators=[(str(model), model) for model in models])
-        ensemble = ensemble.fit(X, y)
     
     def __init__(self, phenotype, x_train, y_train, x_test, y_test, io ):
         

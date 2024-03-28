@@ -6,7 +6,7 @@ from os import sched_getaffinity
 from copy import deepcopy
 import numpy
 from joblib import load
-from pandas import DataFrame, concat
+from pandas import DataFrame, concat, to_numeric
 import matplotlib.pyplot as plt
 import shap
 
@@ -68,32 +68,28 @@ class TreeBoost:
         predictor.fit(x, y)
         
         self.Feature_importance_intrinsic(model, predictor)
-        
+        self.io.Save(predictor, model)
         return predictor
 
-    #https://stackoverflow.com/questions/51905524/plot-feature-importance-with-xgboost
-    def Feature_importance_intrinsic(self, model, predictor):
-        feature_importance = DataFrame(index = self.OGs)
-        
+    def Feature_importance_intrinsic(self, model, predictor, n_features = 20):
         for idx in range(len(predictor.estimators_)):
             if model is 'lgbm':
-                f = DataFrame(predictor.estimators_[idx].feature_importances_, index=self.OGs, columns=['class_'+str(idx)])
+                feat_importance = DataFrame(predictor.estimators_[idx].booster_.feature_importance(importance_type='gain'),
+                                            index=self.OGs)
             elif model is 'xgboost':
-                f = DataFrame(predictor.estimators_[idx].feature_importances_, index=self.OGs, columns=['class_'+str(idx)])
-            
-            feature_importance = concat([feature_importance, f], axis=1)
-            
-        feature_importance = feature_importance[feature_importance.apply(lambda row: (abs(row) > 0.1).any(), axis=1)]
-        
-        if feature_importance.empty:
-            self.io.WriteLog( 'No relevant features detected in the model.' )
-        else:
-            plt.figure( str(idx)+'_intrinsic' )
-            feature_importance.plot(kind='bar')
-            plt.tight_layout()
+                feat_importance = DataFrame(predictor.estimators_[idx].feature_importances_, index=self.OGs)
 
-            fig_name = self.io.save_folder+model+'_intrinsic.png'
-            plt.savefig(fig_name, dpi=300)
+            feat_importance = feat_importance.loc[~(feat_importance == 0).all(axis=1)]
+            feat_importance = feat_importance.nlargest(n_features, feat_importance.columns.values.tolist(),keep='first')
+
+            if feat_importance.empty:
+                self.io.WriteLog( 'No relevant features detected in the model.' )
+            else:
+                fig_name = self.io.save_folder+model+'_'+str(idx)+'_intrinsic.png'
+                plt.figure( fig_name )
+                feat_importance.plot(kind='bar',legend=False)
+                plt.tight_layout()
+                plt.savefig(fig_name, dpi=300)
 
     def Feature_importance_SHAP(self, model, x, name ):
         for i in range(len(model.estimators_)):

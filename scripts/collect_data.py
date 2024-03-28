@@ -14,7 +14,7 @@ Class: collecting and organizing training data.
 Observations: data from different phenotypes must be treated differently in the ParseMadin() method.
 Parameters: phenotype - phenotype of interest
 """
-class CollectGenomes:
+class CollectData:
 
     """
     Function: downloads a genome fasta file from the NCBI server
@@ -39,15 +39,9 @@ class CollectGenomes:
     def ParseMadin(self, phenotype ):
         
         ### Get Madin's results ###
-        os.system('wget --tries=20 --quiet -P ' + self.data_folder + ' https://raw.githubusercontent.com/bacteria-archaea-traits/bacteria-archaea-traits/master/output/condensed_species_NCBI.csv')
+        os.system('wget --quiet -P ' + self.data_folder + ' https://raw.githubusercontent.com/bacteria-archaea-traits/bacteria-archaea-traits/master/output/condensed_species_NCBI.csv')
         madin = pandas.read_csv( self.data_folder + 'condensed_species_NCBI.csv', sep=',')
         os.system('rm -r ' + self.data_folder + 'condensed_species_NCBI.csv')
-        
-        """ Run madin original script
-        os.system('Rscript ../data/madin/workflow.R')
-        madin = pandas.read_csv( '../data/madin/output/condensed_species_NCBI.csv', sep=',')
-        os.system('rm -r ../data/madin/output/condensed_species_NCBI.csv')
-        """
         
         madin = madin[madin.superkingdom != 'Archaea'] # remove archaea
         madin.rename(columns = {'species_tax_id':'taxid'}, inplace = True)
@@ -123,6 +117,20 @@ class CollectGenomes:
                     madin['phenotype2'][idx] = 'yes'
                     madin['phenotype3'][idx] = 'no'
 
+        elif phenotype == 'metabolism':
+            # phenotype1 = aerobic
+            madin['phenotype2'] = 'no' # phenotype2 = anaerobic
+            for idx, row in madin.iterrows():
+                if row.phenotype1 in ['aerobic','obligate aerobic']:
+                    madin['phenotype1'][idx] = 'yes'
+                    madin['phenotype2'][idx] = 'no'
+                elif row.phenotype1 in ['anaerobic','obligate anaerobic']:
+                    madin['phenotype1'][idx] = 'no'
+                    madin['phenotype2'][idx] = 'yes'
+                elif row.phenotype1 in ['facultative','microaerophilic']:
+                    madin['phenotype1'][idx] = 'yes'
+                    madin['phenotype2'][idx] = 'yes'
+                    
         madin.to_csv( self.data_folder + phenotype + '/data/madin.csv', index=False)
         return madin
 
@@ -131,7 +139,7 @@ class CollectGenomes:
     """
     @jit
     def ParseNCBI(self):
-        os.system('wget --tries=40 --quiet -P ' + self.data_folder + 
+        os.system('wget --quiet -P '+self.data_folder+
                   ' https://ftp.ncbi.nlm.nih.gov/genomes/genbank/bacteria/assembly_summary.txt')
         ncbi = open( self.data_folder + 'assembly_summary.txt','r').readlines()
         del ncbi[0] # remove comment line

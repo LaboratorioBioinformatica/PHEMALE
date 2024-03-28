@@ -1,8 +1,14 @@
 """
+TODO list:
+range_salinity 
+optimum_ph
+nitrogen_fixation
+
 List of possible phenotypes:range_tmp
                             range_salinity
                             optimum_tmp
                             optimum_ph
+                            metabolism = oxygen use
                             sporulation
                             nitrogen_fixation
                             nitrate_reduction
@@ -13,32 +19,37 @@ import sys
 phenotype = str(sys.argv[1])
 
 try:
-    if str(sys.argv[2]) == 'hypothetical':
+    if str(sys.argv[2]) == 'hypothetical' or str(sys.argv[2]) == '2':
         hypothetical_OG = True
 except IndexError:
     hypothetical_OG = False
 
 ######################## Data Preparation ########################
-
-from scripts.collect_genomes import CollectGenomes
-CollectGenomes( phenotype, genomes_per_species = 1 )
+from scripts.collect_data import CollectData
+#CollectData( phenotype, genomes_per_species = 1 )
 
 from scripts.eggnog_mapping import EggnogMapping
-EggnogMapping( phenotype )
+#EggnogMapping( phenotype )
 
 from scripts.standardization import DataStandardization
-DataStandardization( phenotype, hypothetical_OG)
+#DataStandardization( phenotype, hypothetical_OG)
 
 from scripts.create_dataset import CreateDataset
-CreateDataset( phenotype )
+#CreateDataset( phenotype )
 
 from scripts.data_IO import IO
 io = IO( phenotype )
-x, y = io.GetData()
+
+io.WriteLog( 'Phenotype: ' + phenotype )
+io.WriteLog( 'Hypothetical COGs: ' + str(hypothetical_OG) )
+
+x = io.GetX()
+y = io.GetY()
+
 x_train, y_train, x_test, y_test = io.SplitData(x, y, 0.2)
 
 ############################ Training ############################
-from scripts.sklearn_individual import Sklearn
+from scripts.sklearn_train import Sklearn
 Sklearn( phenotype, x_train, y_train, x_test, y_test, io )
 
 #https://jovian.com/poduguvenu/xgboost-lightgbm-catboost-sklearn-gradientboosting-comparision
