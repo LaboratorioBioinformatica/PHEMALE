@@ -4,13 +4,6 @@ cpu.job
 gpu.job
 job.job
 phemale.out
-metadata
-results
 README.md
-tests.ipynb
-tarefas.txt
 .ipynb_checkpoints/tests-checkpoint.ipynb
-scripts/notes.py
-main.py
-ANI.py
-ani.out
+FastANI
