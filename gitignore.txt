@@ -1,9 +1,0 @@
-eggnog-mapper/temp
-__pycache__
-cpu.job
-gpu.job
-job.job
-phemale.out
-README.md
-.ipynb_checkpoints/tests-checkpoint.ipynb
-FastANI
