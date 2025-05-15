@@ -1,4 +1,4 @@
-<p align="center"> <img src="logo_vHULK.png" height="200" alt="PheMaLe" /> </p>
+<p align="center"> <img src="logo.png" height="200" alt="PheMaLe" /> </p>
 
 # PheMaLe bacteria
 
