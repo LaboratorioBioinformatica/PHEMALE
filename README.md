@@ -6,4 +6,4 @@
 
 ## Bacterial phenotypes prediction using high level features and multiple machine learning algorithms
 
-<a href="[url](https://doi.org/10.11606/T.95.2025.tde-30042025-170213)">More details</a>
+More details at: <a href="https://doi.org/10.11606/T.95.2025.tde-30042025-170213">https://doi.org/10.11606/T.95.2025.tde-30042025-170213</a>
